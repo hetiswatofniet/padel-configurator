@@ -1,0 +1,7 @@
+dist/
+build/
+__pycache__/
+*.spec.bak
+padel_setup_state.json
+output/
+*.json

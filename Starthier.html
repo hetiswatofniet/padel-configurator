@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baantjes-reservering instellen</title>
+<style>
+  :root { --bg:#f6f4ef; --kaart:#fffdf8; --lijn:#e3ddd0; --tekst:#241f1a; --zwak:#6d6558;
+          --accent:#2f6f4f; --accent-zacht:#e7f0e9; --fout:#a5321f; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--tekst);
+         font:16px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:28px 20px 8px; max-width:760px; margin:0 auto; }
+  h1 { font-size:1.35rem; margin:0 0 4px; letter-spacing:-.01em; }
+  .sub { color:var(--zwak); font-size:.92rem; margin:0; }
+  main { max-width:760px; margin:0 auto; padding:12px 20px 60px; }
+  .kaart { display:none; background:var(--kaart); border:1px solid var(--lijn);
+           border-radius:12px; padding:20px; margin:14px 0; }
+  .kaart.actief { display:block; }
+  h2 { font-size:1.02rem; margin:0 0 14px; }
+  label { display:block; font-size:.86rem; color:var(--zwak); margin:12px 0 5px; }
+  input[type=text], input[type=email], input[type=password], input[type=time],
+  input[type=number], select {
+    width:100%; padding:10px 12px; border:1px solid var(--lijn); border-radius:8px;
+    background:#fff; font-size:1rem; color:var(--tekst); font-family:inherit; }
+  input:focus, select:focus { outline:2px solid var(--accent-zacht); border-color:var(--accent); }
+  .rij { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  button { font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--lijn);
+           background:#fff; padding:10px 14px; color:var(--tekst); }
+  button:hover { border-color:#cfc6b4; }
+  button.primair { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.primair:disabled { opacity:.45; cursor:not-allowed; }
+  button.keuze { width:100%; text-align:left; }
+  button.keuze.gekozen { border-color:var(--accent); background:var(--accent-zacht); }
+  .opties { display:grid; gap:8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .chip { background:var(--accent-zacht); border:1px solid #cfe0d5; color:#1f4f38;
+          border-radius:999px; padding:5px 11px; font-size:.87rem; display:flex; gap:8px; }
+  .chip button { border:0; background:none; padding:0; color:#1f4f38; line-height:1; }
+  .resultaten { list-style:none; margin:8px 0 0; padding:0; border:1px solid var(--lijn);
+                border-radius:8px; overflow:hidden; }
+  .resultaten:empty { display:none; }
+  .resultaten li { padding:9px 12px; border-bottom:1px solid var(--lijn); cursor:pointer; }
+  .resultaten li:last-child { border-bottom:0; }
+  .resultaten li:hover { background:var(--accent-zacht); }
+  .hint { color:var(--zwak); font-size:.85rem; margin:10px 0 0; }
+  .fout { color:var(--fout); font-size:.9rem; margin:12px 0 0; white-space:pre-wrap; }
+  .goed { color:var(--accent); font-weight:600; margin:0 0 6px; }
+  .voortgang { font-size:.8rem; color:var(--zwak); letter-spacing:.04em;
+               text-transform:uppercase; margin:0 0 6px; }
+  .bestand { display:flex; justify-content:space-between; align-items:center; gap:12px;
+             padding:10px 0; border-bottom:1px solid var(--lijn); }
+  .bestand:last-child { border-bottom:0; }
+  .bestand code { font-size:.9rem; }
+  .nav { display:flex; justify-content:space-between; margin-top:18px; gap:10px; }
+  .verborgen { display:none; }
+  .bezig { color:var(--zwak); font-size:.9rem; margin:12px 0 0; }
+  code { background:#f0ece2; padding:1px 5px; border-radius:4px; font-size:.88em; }
+  @media (max-width:520px) { .rij { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Baantjes-reservering instellen</h1>
+  <p class="sub">Maakt de bestanden voor Home Assistant. Je logt hieronder in bij de clubapp.</p>
+</header>
+
+<main>
+  <section class="kaart actief" id="stap-1">
+    <p class="voortgang">Stap 1 van 4</p>
+    <h2>Inloggen bij je club</h2>
+    <label for="email">E-mailadres</label>
+    <input id="email" type="email" autocomplete="username" placeholder="jij@example.com">
+    <label for="wachtwoord">Wachtwoord</label>
+    <input id="wachtwoord" type="password" autocomplete="current-password">
+    <p class="hint">Deze pagina draait lokaal; je gegevens gaan alleen naar de clubapp-server.</p>
+    <div class="nav">
+      <span></span>
+      <button class="primair" id="knop-login">Inloggen</button>
+    </div>
+    <p class="bezig verborgen" id="bezig-1">Bezig met inloggen...</p>
+    <p class="fout verborgen" id="fout-1"></p>
+  </section>
+
+  <section class="kaart" id="stap-2">
+    <p class="voortgang">Stap 2 van 4</p>
+    <h2>Boekingssysteem</h2>
+    <div id="koppel-info"></div>
+    <div class="verborgen" id="module-vraag">
+      <label for="module-id">Deellink of id van de boekingsmodule</label>
+      <input id="module-id" type="text" placeholder="plak hier de link uit de clubapp">
+      <p class="hint">Open de clubapp, ga naar de boekingsmodule en gebruik <b>Delen > Kopieer
+        link</b> (of lange tik op de module). Plak die link hier; de wizard haalt het id
+        eruit. Een los id van 24 tekens werkt ook. Dit hoef je maar één keer te doen.</p>
+    </div>
+    <div class="nav">
+      <button id="terug-1">Terug</button>
+      <button class="primair" id="knop-koppel">Doorgaan</button>
+    </div>
+    <p class="bezig verborgen" id="bezig-2">Bezig met ophalen...</p>
+    <p class="fout verborgen" id="fout-2"></p>
+  </section>
+
+  <section class="kaart" id="stap-3">
+    <p class="voortgang">Stap 3 van 4</p>
+    <h2>Wat wil je reserveren?</h2>
+
+    <label>Sport</label>
+    <div class="opties" id="sporten"></div>
+
+    <label>Baan</label>
+    <div class="opties" id="banen"></div>
+
+    <div class="rij">
+      <div>
+        <label for="weekday">Dag</label>
+        <select id="weekday">
+          <option value="0">Maandag</option>
+          <option value="1" selected>Dinsdag</option>
+          <option value="2">Woensdag</option>
+          <option value="3">Donderdag</option>
+          <option value="4">Vrijdag</option>
+          <option value="5">Zaterdag</option>
+          <option value="6">Zondag</option>
+        </select>
+      </div>
+      <div>
+        <label for="tijd">Begin van het tijdslot</label>
+        <input id="tijd" type="time" value="20:30" step="900">
+      </div>
+    </div>
+
+    <label for="dagen">Aantal dagen van tevoren</label>
+    <input id="dagen" type="number" min="0" max="14" value="6">
+    <p class="hint" id="open-moment"></p>
+
+    <label>Met hoeveel spelers speel je?</label>
+    <div class="opties" id="aantallen"></div>
+
+    <label for="zoek">Wie spelen er mee?</label>
+    <input id="zoek" type="text" placeholder="Naam van een medespeler" autocomplete="off">
+    <ul class="resultaten" id="resultaten"></ul>
+    <div class="chips" id="spelers"></div>
+
+    <label for="notify">Notify-entiteit (mag leeg blijven)</label>
+    <input id="notify" type="text" placeholder="notify.mijn_telefoon">
+    <p class="hint">Leeg laten mag; dan zet je de notificatie later zelf in de automation.</p>
+
+    <div class="nav">
+      <button id="terug-2">Terug</button>
+      <button class="primair" id="knop-genereer">Bestanden maken</button>
+    </div>
+    <p class="bezig verborgen" id="bezig-3">Bezig...</p>
+    <p class="fout verborgen" id="fout-3"></p>
+  </section>
+
+  <section class="kaart" id="stap-4">
+    <p class="voortgang">Stap 4 van 4</p>
+    <h2>Klaar</h2>
+    <p class="hint" id="samenvatting"></p>
+    <div id="bestanden"></div>
+    <p class="hint" id="doel-info"></p>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const DAGEN = ["maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag","zondag"];
+const KORT = ["ma","di","wo","do","vr","za","zo"];
+const DAG_KORT = { mon:"ma", tue:"di", wed:"wo", thu:"do", fri:"vr", sat:"za", sun:"zo" };
+const S = { email:"", wachtwoord:"", club:"", groepen:[], sport:null, banen:[],
+            baan:null, spelers:[], aantal:4, ik:{key:"",naam:""}, moduleId:"" };
+
+const $ = (id) => document.getElementById(id);
+
+function toon(id) {
+  document.querySelectorAll(".kaart").forEach((k) => k.classList.toggle("actief", k.id === id));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function fout(id, tekst) {
+  const el = $(id);
+  el.textContent = tekst || "";
+  el.classList.toggle("verborgen", !tekst);
+}
+function bezig(id, aan) {
+  const el = $(id);
+  if (el) el.classList.toggle("verborgen", !aan);
+}
+function faseTekst(fase) { return fase === 30 ? "begint op half uur" : "begint op heel uur"; }
+
+async function bel(pad, body) {
+  const r = await fetch(pad, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  let data = {};
+  try { data = await r.json(); } catch (e) { data = {}; }
+  if (!r.ok) throw new Error(data.fout || ("Fout " + r.status));
+  return data;
+}
+
+// ---------------------------------------------------------------- stap 1
+$("knop-login").onclick = async () => {
+  fout("fout-1", "");
+  $("knop-login").disabled = true; bezig("bezig-1", true);
+  try {
+    S.email = $("email").value.trim();
+    S.wachtwoord = $("wachtwoord").value;
+    const data = await bel("api/login", { email: S.email, wachtwoord: S.wachtwoord });
+    S.club = data.gekozen;
+    S.ik = data.ik || { key:"", naam:"" };
+    $("koppel-info").innerHTML = '<p class="goed">Vereniging: ' + data.gekozen + "</p>" +
+      (S.ik.naam ? '<p class="hint">Jij: ' + S.ik.naam + (S.ik.key ? " (" + S.ik.key + ")" : "") + "</p>" : "");
+    toon("stap-2");
+    $("knop-koppel").click();
+  } catch (e) {
+    fout("fout-1", e.message);
+  } finally {
+    $("knop-login").disabled = false; bezig("bezig-1", false);
+  }
+};
+
+// ---------------------------------------------------------------- stap 2
+async function koppelen() {
+  fout("fout-2", "");
+  $("knop-koppel").disabled = true; bezig("bezig-2", true);
+  try {
+    const body = S.moduleId ? { module_id: S.moduleId } : {};
+    const data = await bel("api/koppel", body);
+    if (data.module_id_nodig) {
+      $("module-vraag").classList.remove("verborgen");
+      fout("fout-2", data.melding + " Vul hieronder de module-id in of sla over als je club hem niet gebruikt.");
+      return;
+    }
+    $("module-vraag").classList.add("verborgen");
+    S.groepen = data.sporten || [];
+    $("koppel-info").innerHTML = '<p class="goed">Boekingssysteem: ' + (data.club || S.club) + "</p>" +
+      (data.contact ? '<p class="hint">Ingelogd als ' + data.contact + "</p>" : "");
+    tekenSporten();
+    toon("stap-3");
+  } catch (e) {
+    fout("fout-2", e.message);
+  } finally {
+    $("knop-koppel").disabled = false; bezig("bezig-2", false);
+  }
+}
+$("knop-koppel").onclick = () => {
+  S.moduleId = $("module-id").value.trim() || S.moduleId;
+  koppelen();
+};
+$("terug-1").onclick = () => toon("stap-1");
+
+// ---------------------------------------------------------------- stap 3
+function tekenSporten() {
+  const bak = $("sporten"); bak.innerHTML = "";
+  S.groepen.forEach((sport, i) => {
+    const b = document.createElement("button");
+    b.className = "keuze" + (i === 0 ? " gekozen" : "");
+    b.textContent = sport.naam + " (" + sport.banen.length + " banen)";
+    b.onclick = () => {
+      S.sport = sport;
+      [...bak.children].forEach((c) => c.classList.remove("gekozen"));
+      b.classList.add("gekozen");
+      tekenBanen(); tekenAantallen();
+    };
+    bak.appendChild(b);
+  });
+  S.sport = S.groepen[0] || null;
+  tekenBanen(); tekenAantallen();
+}
+
+function tekenBanen() {
+  const bak = $("banen"); bak.innerHTML = "";
+  if (!S.sport || !S.sport.banen.length) { bak.textContent = "Geen banen gevonden."; S.baan = null; return; }
+  S.baan = S.sport.banen[0];
+  S.sport.banen.forEach((baan, i) => {
+    const b = document.createElement("button");
+    b.className = "keuze" + (i === 0 ? " gekozen" : "");
+    b.textContent = baan.naam + " (" + faseTekst(baan.fase) + ")";
+    b.onclick = () => {
+      S.baan = baan;
+      [...bak.children].forEach((c) => c.classList.remove("gekozen"));
+      b.classList.add("gekozen");
+    };
+    bak.appendChild(b);
+  });
+}
+
+function tekenAantallen() {
+  const bak = $("aantallen"); bak.innerHTML = "";
+  const opties = (S.sport && S.sport.playercounts.length ? S.sport.playercounts : [2, 3, 4]);
+  const keuzes = opties.filter((n) => n === 2 || n === 4);
+  const lijst = keuzes.length ? keuzes : [4];
+  lijst.forEach((n, i) => {
+    const b = document.createElement("button");
+    b.className = "keuze" + (i === lijst.length - 1 ? " gekozen" : "");
+    b.textContent = n === 2 ? "Ik en één ander (2 spelers)" : "Ik en " + (n - 1) + " anderen (" + n + " spelers)";
+    b.onclick = () => {
+      S.aantal = n;
+      [...bak.children].forEach((c) => c.classList.remove("gekozen"));
+      b.classList.add("gekozen");
+      tekenSpelers();
+    };
+    bak.appendChild(b);
+  });
+  S.aantal = lijst[lijst.length - 1];
+  tekenSpelers();
+}
+
+function tekenSpelers() {
+  const bak = $("spelers"); bak.innerHTML = "";
+  const eigen = document.createElement("span");
+  eigen.className = "chip";
+  const tekst = document.createElement("span");
+  tekst.textContent = (S.ik.naam || "jij") + " (jij)";
+  eigen.appendChild(tekst);
+  bak.appendChild(eigen);
+  S.spelers.forEach((speler, i) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    const naam = document.createElement("span");
+    naam.textContent = speler.naam;
+    const weg = document.createElement("button");
+    weg.textContent = "\u00d7"; weg.title = "verwijderen";
+    weg.onclick = () => { S.spelers.splice(i, 1); tekenSpelers(); };
+    chip.append(naam, weg);
+    bak.appendChild(chip);
+  });
+  updateOpenMoment();
+}
+
+function updateOpenMoment() {
+  const weekday = parseInt($("weekday").value, 10);
+  const dagen = parseInt($("dagen").value || "0", 10);
+  const tijd = $("tijd").value || "20:30";
+  const delen = tijd.split(":");
+  const uur = parseInt(delen[0], 10), minuut = parseInt(delen[1], 10);
+  const eind = uur * 60 + minuut + 60;
+  const eindTekst = String(Math.floor(eind / 60) % 24).padStart(2, "0") + ":" +
+                    String(eind % 60).padStart(2, "0");
+  const openDag = ((weekday - dagen) % 7 + 7) % 7;
+  $("open-moment").textContent = "Je speelt " + DAGEN[weekday] + " " + tijd + "-" + eindTekst +
+    "; de reservering opent " + DAGEN[openDag] + " om " + eindTekst + " (" + dagen + " dagen vooruit).";
+}
+$("weekday").onchange = updateOpenMoment;
+$("tijd").onchange = updateOpenMoment;
+$("dagen").oninput = updateOpenMoment;
+
+let zoekTimer = null;
+$("zoek").oninput = () => {
+  clearTimeout(zoekTimer);
+  const term = $("zoek").value.trim();
+  const lijst = $("resultaten");
+  if (term.length < 2) { lijst.innerHTML = ""; return; }
+  zoekTimer = setTimeout(async () => {
+    try {
+      const data = await bel("api/spelers", {
+        term: term, fg_id: S.sport ? S.sport.id : null,
+        playercount: S.sport ? S.sport.playercount : 4
+      });
+      lijst.innerHTML = "";
+      (data.spelers || [])
+        .filter((s) => !S.spelers.some((x) => x.key === s.key) && !(S.ik.key && s.key === S.ik.key))
+        .forEach((speler) => {
+          const li = document.createElement("li");
+          li.textContent = speler.naam + " (" + speler.key + ")";
+          li.onclick = () => {
+            if (S.spelers.length >= S.aantal - 1) {
+              fout("fout-3", "Je koos " + S.aantal + " spelers; verwijder eerst iemand.");
+              return;
+            }
+            S.spelers.push(speler);
+            lijst.innerHTML = ""; $("zoek").value = ""; tekenSpelers();
+          };
+          lijst.appendChild(li);
+        });
+      if (!lijst.children.length) {
+        const li = document.createElement("li");
+        li.textContent = "Niemand gevonden"; li.style.cursor = "default";
+        lijst.appendChild(li);
+      }
+    } catch (e) { fout("fout-3", e.message); }
+  }, 350);
+};
+
+$("terug-2").onclick = () => toon("stap-2");
+
+// ---------------------------------------------------------------- stap 3 -> 4
+$("knop-genereer").onclick = async () => {
+  fout("fout-3", "");
+  if (!S.sport || !S.baan) return fout("fout-3", "Kies eerst een sport en een baan.");
+  if (S.spelers.length !== S.aantal - 1) {
+    return fout("fout-3", "Kies nog " + (S.aantal - 1 - S.spelers.length) + " medespeler(s).");
+  }
+  $("knop-genereer").disabled = true; bezig("bezig-3", true);
+  try {
+    const data = await bel("api/genereer", {
+      wachtwoord: S.wachtwoord,
+      club: S.club,
+      fg_id: S.sport.id,
+      sport_naam: S.sport.naam,
+      sport_icon: (S.sport.naam || "").toLowerCase().indexOf("padel") >= 0 ? "padel" : "tennis",
+      court: S.baan.naam,
+      weekday: parseInt($("weekday").value, 10),
+      time: $("tijd").value,
+      days_ahead: parseInt($("dagen").value || "6", 10),
+      playercount: S.aantal,
+      spelers: S.spelers,
+      notify: $("notify").value.trim()
+    });
+
+    const cfg = data.config;
+    $("samenvatting").textContent =
+      cfg.sport_naam + " · " + cfg.court + " · " + DAGEN[cfg.weekday] + " " + cfg.time + "-" +
+      data.slot_eind + " · " + S.aantal + " spelers · " + cfg.days_ahead + " dagen vooruit · " +
+      "automation op " + (DAG_KORT[data.trigger.weekday] || data.trigger.weekday) + " " + data.trigger.time.slice(0, 5) + ".";
+
+    const bak = $("bestanden"); bak.innerHTML = "";
+    Object.entries(data.bestanden).forEach(([naam, inhoud]) => {
+      const rij = document.createElement("div");
+      rij.className = "bestand";
+      const code = document.createElement("code");
+      code.textContent = naam;
+      const b = document.createElement("button");
+      b.textContent = "Download";
+      b.onclick = () => download(naam, inhoud);
+      rij.append(code, b);
+      bak.appendChild(rij);
+    });
+
+    if (data.geschreven && data.geschreven.length) {
+      $("doel-info").innerHTML = "Deze bestanden zijn al weggeschreven:<br>" +
+        data.geschreven.map((p) => "<code>" + p + "</code>").join("<br>") +
+        "<br><br>Open <code>INSTALL.md</code> voor de laatste stappen (shell_command en de automation importeren).";
+    } else {
+      $("doel-info").textContent =
+        "Zet book_padel.py en book_padel_secrets.json in /config/scripts, voeg de shell_command toe " +
+        "en importeer de automation. De stappen staan in INSTALL.md.";
+    }
+    toon("stap-4");
+  } catch (e) {
+    fout("fout-3", e.message);
+  } finally {
+    $("knop-genereer").disabled = false; bezig("bezig-3", false);
+  }
+};
+
+function download(naam, inhoud) {
+  const blob = new Blob([inhoud], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = naam;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+updateOpenMoment();
+</script>
+</body>
+</html>
