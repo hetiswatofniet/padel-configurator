@@ -127,6 +127,18 @@ def _json_van(resp, standaard=None):
     return standaard if waarde is None else waarde
 
 
+def als_lijst(waarde) -> list:
+    """Dit platform stuurt één item als los object in plaats van als lijst.
+
+    Clubs met precies één sport (bijv. een tennisclub met alleen "Baanoverzicht")
+    krijgen `data` als object; bij meerdere sporten is het een lijst. Alles wat we
+    als lijst doorlopen gaat hier doorheen.
+    """
+    if waarde is None:
+        return []
+    return waarde if isinstance(waarde, list) else [waarde]
+
+
 def tekst_waarde(resp, sleutel: str) -> str:
     """String-veld uit een antwoord dat soms platte tekst teruggeeft.
 
@@ -228,9 +240,8 @@ def filter_groups(sess, au: dict) -> list:
     if r.status_code != 200:
         raise Fout(f"Kon de sporten niet ophalen ({r.status_code}).")
     waarde = _json_van(r, {})
-    if isinstance(waarde, dict):
-        return waarde.get("data") or []
-    return waarde if isinstance(waarde, list) else []
+    data = waarde.get("data") if isinstance(waarde, dict) else waarde
+    return [g for g in als_lijst(data) if isinstance(g, dict)]
 
 
 def schema(sess, au: dict, fg_id, datum: str, playercount: int) -> dict:
@@ -253,7 +264,7 @@ def baan_overzicht(sess, au: dict, fg_id, playercount: int) -> tuple:
             break
 
     banen, gezien = [], set()
-    for p in probe.get("schematicPeriods") or []:
+    for p in als_lijst(probe.get("schematicPeriods")):
         naam = p.get("group")
         if not naam or naam in gezien:
             continue
@@ -269,7 +280,7 @@ def baan_overzicht(sess, au: dict, fg_id, playercount: int) -> tuple:
     # tweede periode per baan = het moment dat de baan opengaat
     for b in banen:
         if b["fase"] == 99:
-            volgende = [p for p in probe["schematicPeriods"]
+            volgende = [p for p in als_lijst(probe.get("schematicPeriods"))
                         if p.get("group") == b["naam"] and p.get("timeFrom") != "00:00"]
             if volgende:
                 start = volgende[0]["timeFrom"]
@@ -290,9 +301,12 @@ def zoek_context(sess, au: dict, fg_id, playercount: int) -> str:
     for dagen in (3, 4, 5, 6, 7, 1, 2):
         datum = (date.today() + timedelta(days=dagen)).isoformat()
         data = schema(sess, au, fg_id, datum, playercount)
-        for periode in data.get("schematicPeriods") or []:
-            if periode.get("status") == "available" and periode.get("items"):
-                return periode["items"][0]["key"]
+        for periode in als_lijst(data.get("schematicPeriods")):
+            if not isinstance(periode, dict):
+                continue
+            items = als_lijst(periode.get("items"))
+            if periode.get("status") == "available" and items:
+                return items[0]["key"]
     return ""
 
 

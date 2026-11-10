@@ -53,6 +53,22 @@ DAGEN = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "
 VERBOSE = "--verbose" in sys.argv
 
 
+def als_lijst(waarde) -> list:
+    """Eén item komt bij dit platform soms als los object in plaats van als lijst."""
+    if waarde is None:
+        return []
+    return waarde if isinstance(waarde, list) else [waarde]
+
+
+def tekst_waarde(waarde, sleutel: str) -> str:
+    """String-veld uit een antwoord dat soms platte tekst is in plaats van een object."""
+    if isinstance(waarde, dict):
+        return str(waarde.get(sleutel) or "")
+    if isinstance(waarde, str):
+        return waarde.strip().strip('"')
+    return ""
+
+
 def log(msg: str) -> None:
     if VERBOSE:
         print(msg)
@@ -126,7 +142,7 @@ def au_sessie(s, creds: dict) -> tuple:
         fout("Socie weigert tijdelijk (te veel inlogpogingen). Probeer het later opnieuw.")
     if r.status_code != 200:
         fout(f"inloggen bij Socie mislukt ({r.status_code}): {r.text[:200]}")
-    token = (r.json() or {}).get("accessToken")
+    token = tekst_waarde(r.json(), "accessToken")
     if not token:
         fout("inloggen bij Socie gaf geen token terug")
     log("Socie-login ok")
@@ -138,7 +154,10 @@ def au_sessie(s, creds: dict) -> tuple:
               headers=h, timeout=30)
     if r.status_code != 200:
         fout(f"ophalen boekingslink mislukt ({r.status_code}): {r.text[:200]}")
-    sessie = _sso_exchange(s, r.json()["url"].split("/sso/")[1])
+    boekings_url = tekst_waarde(r.json(), "url")
+    if "/sso/" not in boekings_url:
+        fout(f"boekingslink heeft een onverwacht formaat: {boekings_url[:120]!r}")
+    sessie = _sso_exchange(s, boekings_url.split("/sso/")[1])
     if not sessie:
         fout("inloggen bij het boekingssysteem mislukt (boekingslink ongeldig)")
     return sessie
@@ -162,14 +181,16 @@ def boekingsmodule(s, token: str, cid: str, mid: str) -> str:
     r = s.get(f"{SOCIE}/v2/app/communities/{cid}/pages", headers=h, timeout=30)
     kandidaten = []
     if r.status_code == 200:
-        for pagina in r.json() or []:
+        for pagina in als_lijst(r.json()):
+            if not isinstance(pagina, dict):
+                continue
             module_id = pagina.get("module_id")
             if module_id and module_id not in kandidaten:
                 kandidaten.append(module_id)
     for module_id in kandidaten:
         rr = s.get(f"{SOCIE}/v2/app/communities/{cid}/modules/{module_id}/allunited_pwa/url",
                    headers=h, timeout=20)
-        if rr.status_code == 200 and (rr.json() or {}).get("url"):
+        if rr.status_code == 200 and tekst_waarde(rr.json(), "url"):
             return module_id
     fout("De bewaarde boekingslink is verlopen en de boekingsmodule kon niet zelf "
          "gevonden worden. Open Starthier.html, plak een nieuwe boekingslink en werk "
@@ -212,8 +233,11 @@ def main() -> None:
               headers=au_headers, timeout=30)
     if r.status_code != 200:
         fout(f"ophalen schema mislukt ({r.status_code}): {r.text[:200]}")
-    data = r.json()["data"]
-    periodes = data.get("schematicPeriods") or []
+    antwoord = r.json()
+    data = antwoord.get("data") if isinstance(antwoord, dict) else {}
+    if not isinstance(data, dict):
+        fout(f"onverwacht antwoord bij het ophalen van het schema: {str(antwoord)[:200]}")
+    periodes = [p for p in als_lijst(data.get("schematicPeriods")) if isinstance(p, dict)]
 
     # 5. vrij slot zoeken
     doel = arg_waarde("--time") or CONFIG["time"]
