@@ -53,5 +53,5 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, naam: windows }
-          - { os: macos-13, naam: macos-intel }
+          - { os: macos-15-intel, naam: macos-intel }
           - { os: ubuntu-latest, naam: linux }
