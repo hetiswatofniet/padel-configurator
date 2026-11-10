@@ -57,13 +57,16 @@
   .bezig { color:var(--zwak); font-size:.9rem; margin:12px 0 0; }
   code { background:#f0ece2; padding:1px 5px; border-radius:4px; font-size:.88em; }
   @media (max-width:520px) { .rij { grid-template-columns:1fr; } }
+  details.rest { margin-top: 14px; }
+  details.rest summary { cursor: pointer; padding: 6px 0; font-size: 13px; opacity: .8; }
+  details.rest summary:hover { opacity: 1; }
 </style>
 </head>
 <body>
 <header>
   <h1>Baantjes-reservering instellen</h1>
   <p class="sub">Maakt de bestanden voor Home Assistant. Je logt hieronder in bij de clubapp.</p>
-  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.2</p>
+  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.3</p>
 </header>
 
 <main>
@@ -155,8 +158,8 @@
     <p class="hint" id="samenvatting"></p>
     <div id="bestanden"></div>
     <p class="hint" id="doel-info"></p>
-    <p class="hint">Het pakket-bestand <code>padel_installatie.yaml</code> regelt alles in één keer;
-      de losse bestanden zijn de handmatige route.</p>
+    <p class="hint">Volg de snelste route: twee bestanden, klaar. De rest staat uitgeklapt
+      onderaan bij de handmatige route.</p>
   </section>
 </main>
 
@@ -403,18 +406,7 @@ $("knop-genereer").onclick = async () => {
       data.slot_eind + " · " + S.aantal + " spelers · " + cfg.days_ahead + " dagen vooruit · " +
       "automation op " + (DAG_KORT[data.trigger.weekday] || data.trigger.weekday) + " " + data.trigger.time.slice(0, 5) + ".";
 
-    const bak = $("bestanden"); bak.innerHTML = "";
-    Object.entries(data.bestanden).forEach(([naam, inhoud]) => {
-      const rij = document.createElement("div");
-      rij.className = "bestand";
-      const code = document.createElement("code");
-      code.textContent = naam;
-      const b = document.createElement("button");
-      b.textContent = "Download";
-      b.onclick = () => download(naam, inhoud);
-      rij.append(code, b);
-      bak.appendChild(rij);
-    });
+    toonBestanden(data);
 
     if (data.geschreven && data.geschreven.length) {
       $("doel-info").innerHTML = "Deze bestanden zijn al weggeschreven:<br>" +
@@ -422,9 +414,10 @@ $("knop-genereer").onclick = async () => {
         "<br><br>Open <code>INSTALL.md</code> voor de laatste stappen (shell_command en de automation importeren).";
     } else {
       $("doel-info").innerHTML =
-        "Snelste route: <code>padel_installatie.yaml</code> in <code>/config/packages/</code>, " +
-        "de YAML herladen, <code>padel_script.yaml</code> in de UI bij Scripts plakken en dat " +
-        "script één keer uitvoeren met je inloggegevens. De stappen staan in <code>INSTALL.md</code>.";
+        "Snelste route: <code>padel_installatie.yaml</code> in <code>/config/packages/</code> " +
+        "(File Editor add-on), <code>padel_script.yaml</code> in de UI bij Scripts plakken, " +
+        "Home Assistant herstarten en het script één keer uitvoeren met je inloggegevens. " +
+        "De exacte stappen staan in <code>INSTALL.md</code>.";
     }
     toon("stap-4");
   } catch (e) {
@@ -433,6 +426,44 @@ $("knop-genereer").onclick = async () => {
     $("knop-genereer").disabled = false; bezig("bezig-3", false);
   }
 };
+
+function toonBestanden(data) {
+const bak = $("bestanden"); bak.innerHTML = "";
+
+function maakRij(naam, inhoud) {
+  const rij = document.createElement("div");
+  rij.className = "bestand";
+  const code = document.createElement("code");
+  code.textContent = naam;
+  const b = document.createElement("button");
+  b.textContent = "Download";
+  b.onclick = () => download(naam, inhoud);
+  rij.append(code, b);
+  return rij;
+}
+
+// alleen de twee bestanden van de snelste route bovenaan
+const snel = ["padel_installatie.yaml", "padel_script.yaml"];
+const kopSnel = document.createElement("p");
+kopSnel.className = "hint";
+kopSnel.innerHTML = "<strong>Snelste route</strong> — deze twee bestanden heb je nodig.";
+bak.appendChild(kopSnel);
+Object.entries(data.bestanden)
+  .filter(([naam]) => snel.includes(naam))
+  .forEach(([naam, inhoud]) => bak.appendChild(maakRij(naam, inhoud)));
+
+// de rest (handmatige route) in een dropdown
+const rest = Object.entries(data.bestanden).filter(([naam]) => !snel.includes(naam));
+if (rest.length) {
+  const det = document.createElement("details");
+  det.className = "rest";
+  const sum = document.createElement("summary");
+  sum.textContent = "Overige bestanden — handmatige route (" + rest.length + ")";
+  det.appendChild(sum);
+  rest.forEach(([naam, inhoud]) => det.appendChild(maakRij(naam, inhoud)));
+  bak.appendChild(det);
+}
+}
 
 function download(naam, inhoud) {
   const blob = new Blob([inhoud], { type: "text/plain;charset=utf-8" });

@@ -581,81 +581,48 @@ sequence:
 """
 
 
-def render_install(notify_entity: str, trig: dict,
-                   bestandsnaam: str = "book_padel_secrets.json") -> str:
-    if notify_entity:
-        notif_uitleg = f"""De automation in het pakket stuurt het resultaat naar
-`{notify_entity}`. Klopt die entiteit niet, pas hem aan in
-`padel_installatie.yaml` (actie `notify.send_message`)."""
-    else:
-        notif_uitleg = """De automation is gegenereerd **zonder** notificatie-actie. In
-`padel_installatie.yaml` staat bij de automation een uitgecommentarieerd blok met
-`notify.MIJN_TELEFOON`. Vervang dat door je eigen entiteit en haal de `#` weg,
-of gebruik `persistent_notification.create`."""
+DAGEN_NL = {
+    "mon": "maandag", "tue": "dinsdag", "wed": "woensdag", "thu": "donderdag",
+    "fri": "vrijdag", "sat": "zaterdag", "sun": "zondag",
+}
 
-    return f"""# Installatie in Home Assistant
+HANDLEIDING = """# Installatie in Home Assistant
 
-Gegenereerd door de configurator. Kies één van de twee routes.
+De bestanden heten altijd `padel_...`, ook als je tennisbanen hebt gekozen. Het
+script reserveert de sport en baan die je in de wizard hebt aangewezen.
 
-Het pakketbestand bevat de `shell_command`-definities en de automation. Het script
-komt bewust **niet** uit het pakket: pas je het in de UI aan, dan bewaart Home
-Assistant het in `scripts.yaml` en blijft het bewerkbaar.
+## Snelste route (aanbevolen)
 
-## Route A (aanbevolen): pakketbestand + script in de UI
+Je hebt twee bestanden nodig: `padel_installatie.yaml` en `padel_script.yaml`.
 
-1. Zet `padel_installatie.yaml` in de map `/config/packages/`
-   (map aanmaken als die er nog niet is).
-2. Staat `packages:` nog niet aan in `configuration.yaml`, voeg dan toe en herstart
-   Home Assistant één keer:
+1. Zet `padel_installatie.yaml` in `/config/packages/` in Home Assistant. Dat kan
+   bijvoorbeeld met de **File Editor** add-on. Bestaat de map nog niet, maak hem aan.
+2. Ga naar Instellingen > Automatiseringen & scènes > **Scripts** en maak een
+   nieuw script aan. Bewerk het in YAML (rechtsboven de drie puntjes >
+   **YAML bewerken**). Staat er al iets in? Weggooien en vervangen door de
+   volledige inhoud van `padel_script.yaml`. Opslaan.
+3. Herstart Home Assistant.
+4. Open het script en vul de gebruikersnaam en het wachtwoord van je clubapp in.
+   Die worden bewaard en gebruikt voor alle volgende reserveringen via Home
+   Assistant.
+5. Draai in Instellingen > Automatiseringen & scènes > Scripts het script
+   *Padel: bestanden klaarzetten*.
+6. Wacht ongeveer 10 seconden. Daarna krijg je een melding in Home Assistant dat
+   het klaar is.
+7. Controleer het met Instellingen > Hulpmiddelen > **Acties** >
+   `shell_command.book_padel_dry_run`. Je krijgt daar output. Meestal meldt hij
+   dat de reservering niet gelukt is omdat de baan al bezet is — komt hij zover,
+   dan heeft hij zijn werk gedaan.
 
-   ```yaml
-   homeassistant:
-     packages: !include_dir_named packages
-   ```
+Daarna draait de automation vanzelf: elke **__DAG__** om **__TIJD__**.
 
-   Stond het er al, dan is herladen genoeg:
-   Ontwikkelaarshulpmiddelen -> YAML -> **Alle YAML-configuratie herladen**.
-3. Zet het script in Home Assistant, zodat je het later in de interface kunt
-   aanpassen: Instellingen -> Automatiseringen & scènes -> **Scripts** ->
-   **+ Nieuw script** -> rechtsboven de drie puntjes -> **YAML bewerken** ->
-   alles selecteren en de inhoud van `padel_script.yaml` erin plakken -> **Opslaan**.
-   (Alternatief: dezelfde inhoud onderaan `scripts.yaml` plakken en
-   Ontwikkelaarshulpmiddelen -> Acties -> `script.reload`.)
-4. Start het script: **Uitvoeren** en vul je club-e-mailadres en wachtwoord in.
-   Het script zet `book_padel.py` in `/config/scripts` en bewaart de inloggegevens
-   in `book_padel_secrets.json` (alleen leesbaar voor de eigenaar).
-5. Testen: Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.book_padel_dry_run`.
-   Zet een baan in het winkelmandje zonder te bevestigen. Zie je
-   "Padelbaan X gereserveerd op ..., niet bevestigd", dan werkt alles.
-
-Daarna draait de automation vanzelf: elke **{trig['weekday']}** om
-**{trig['time'][:-3]}**.
-
-### Notificatie
-
-{notif_uitleg}
-
-### Wachtwoord en traces
-
-Home Assistant bewaart per uitvoering een trace, inclusief de variabelen die je
-invult. Wis die na het instellen: Instellingen -> Automatiseringen & scènes ->
-Scripts -> *Padel: bestanden klaarzetten* -> drie puntjes -> **Traces wissen**.
-Het wachtwoord staat verder alleen in `book_padel_secrets.json` (mode 600).
-
-### Later iets wijzigen
-
-Draai de configurator opnieuw en vervang `padel_installatie.yaml`. Daarna
-"Alle YAML-configuratie herladen" en het script opnieuw uitvoeren (je
-inloggegevens blijven bewaard).
-
-## Route B (handmatig)
+## Handmatige route
 
 Werkt je Home Assistant zonder `packages` (bijvoorbeeld Home Assistant Container),
-gebruik dan de losse bestanden:
+gebruik dan de losse bestanden uit de dropdown:
 
-1. `book_padel.py` en `{bestandsnaam}` naar `/config/scripts/`
-   (map aanmaken als die er nog niet is).
-2. Zet in `configuration.yaml`:
+1. `book_padel.py` en `__SECRETS__` naar `/config/scripts/`.
+2. In `configuration.yaml`:
 
    ```yaml
    shell_command:
@@ -663,27 +630,54 @@ gebruik dan de losse bestanden:
      book_padel_dry_run: "python3 /config/scripts/book_padel.py --dry-run"
    ```
 
-   Herladen met Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.reload`,
-   of Home Assistant opnieuw starten.
-3. Importeer `book_padel_automation.yaml` bij Automatiseringen
-   (Nieuwe automatisering -> Rechtsboven -> YAML bewerken, of Importeren).
+3. Importeer `book_padel_automation.yaml` bij Automatiseringen.
 4. Notificatie: zie de uitgecommentarieerde actie in `book_padel_automation.yaml`.
 
-## Controle
+## Notificatie
 
-- trigger: elke **{trig['weekday']}** om **{trig['time'][:-3]}**
-- actie: `shell_command.book_padel`
-- notificatie: {'`' + notify_entity + '`' if notify_entity else 'nog instellen'}
+__NOTIF__
+
+## Later iets wijzigen
+
+Draai de configurator opnieuw en vervang `padel_installatie.yaml` (en eventueel
+`padel_script.yaml`). Daarna herstarten en het script opnieuw uitvoeren; je
+inloggegevens blijven bewaard.
+
+## Wachtwoord en traces
+
+Home Assistant bewaart per uitvoering een trace, inclusief de variabelen die je
+invult. Wis die na het instellen: Instellingen > Automatiseringen & scènes >
+Scripts > *Padel: bestanden klaarzetten* > drie puntjes > **Traces wissen**.
+Het wachtwoord staat verder alleen in `__SECRETS__` (mode 600).
 
 ## Als er iets misgaat
 
 | melding | oorzaak |
 |---|---|
-| `inloggegevens zijn nog niet ingevuld` | script *Padel: bestanden klaarzetten* nog niet gedraaid |
+| `inloggegevens zijn nog niet ingevuld` | script nog niet gedraaid met je gegevens |
 | `inloggen bij Socie mislukt` | wachtwoord gewijzigd; script opnieuw uitvoeren |
-| `geen padelbaan vrij om ...` | tijdslot bezet; de automation meldt de alternatieven |
+| `geen baan vrij om ...` | tijdslot bezet; de melding noemt de vrije tijden |
+| `No such file or directory: 'set'` | oude `padel_installatie.yaml`; gebruik de nieuwste versie |
 | `ophalen boekingslink mislukt` | club heeft de koppeling gewijzigd; configurator opnieuw draaien |
 """
+
+
+def render_install(notify_entity: str, trig: dict,
+                   bestandsnaam: str = "book_padel_secrets.json") -> str:
+    if notify_entity:
+        notif = (f"De automation stuurt het resultaat naar `{notify_entity}`. Klopt die "
+                 "entiteit niet, pas hem aan in `padel_installatie.yaml` "
+                 "(actie `notify.send_message`).")
+    else:
+        notif = ("Er is geen notificatie ingesteld. In `padel_installatie.yaml` staat bij de "
+                 "automation een uitgecommentarieerd blok met `notify.MIJN_TELEFOON`; vervang "
+                 "dat door je eigen entiteit en haal de `#` weg.")
+
+    return (HANDLEIDING
+            .replace("__DAG__", DAGEN_NL.get(trig["weekday"], trig["weekday"]))
+            .replace("__TIJD__", trig["time"][:-3])
+            .replace("__NOTIF__", notif)
+            .replace("__SECRETS__", bestandsnaam))
 
 
 SECRETS_VELDEN = ("email", "password")
