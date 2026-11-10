@@ -45,6 +45,7 @@ jobs:
             |---|---|
             | `padel-configurator-windows.exe` | Windows 10/11 |
             | `padel-configurator-macos-intel` | Mac met Intel-processor |
+            | `padel-configurator-macos-arm64` | Mac met Apple-chip (M1 en nieuwer) |
             | `padel-configurator-linux` | Linux (x86_64) |
 
             Uitvoeren en de URL openen die in het venster verschijnt. Zie README.md.
@@ -54,4 +55,5 @@ jobs:
         include:
           - { os: windows-latest, naam: windows }
           - { os: macos-15-intel, naam: macos-intel }
+          - { os: macos-15, naam: macos-arm64 }
           - { os: ubuntu-latest, naam: linux }
