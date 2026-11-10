@@ -54,6 +54,6 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, naam: windows }
-          - { os: macos-14, naam: macos-arm64 }
-          - { os: macos-13, naam: macos-intel }
-          - { os: ubuntu-latest, naam: linux }
+          # Later aanzetten zodra de Mac-build getest is:
+          # - { os: macos-13, naam: macos-intel }
+          # - { os: ubuntu-latest, naam: linux }

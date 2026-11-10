@@ -13,7 +13,6 @@ Bij het starten verschijnt een URL met een toegangscode; open die op je laptop.
 
 import argparse
 import json
-import re
 import secrets
 import socket
 import sys
@@ -78,25 +77,12 @@ def api_login(body: dict) -> dict:
             "ik": {"key": ext, "naam": naam}}
 
 
-def _module_id(ruw: str) -> str:
-    """Accepteert een los id of een geplakte deellink uit de clubapp."""
-    ruw = (ruw or "").strip()
-    m = re.search(r"/modules/([0-9a-f]{24})", ruw, re.I)
-    if m:
-        return m.group(1).lower()
-    m = re.search(r"\b([0-9a-f]{24})\b", ruw, re.I)
-    return m.group(1).lower() if m else ""
-
-
 def api_koppel(body: dict) -> dict:
     sess, token = _sessie()
     cid, mid = STAAT["cid"], STAAT["mid"]
-    ingevuld = _module_id(body.get("module_id"))
-    module_id = (setup.vind_boekingsmodule(sess, token, cid, mid, ingevuld or None)
-                 or setup.opgeslagen_module_id())
+    module_id = setup.vind_boekingsmodule(sess, token, cid, mid)
     if not module_id:
-        return {"module_id_nodig": True,
-                "melding": "De boekingsmodule is niet automatisch gevonden."}
+        raise Fout("Deze vereniging heeft geen AllUnited-boekingsmodule in het menu staan.")
 
     au = setup.allunited_sessie(sess, token, cid, mid, module_id)
     groepen = setup.filter_groups(sess, au)

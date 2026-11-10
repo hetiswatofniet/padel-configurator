@@ -86,13 +86,7 @@
     <p class="voortgang">Stap 2 van 4</p>
     <h2>Boekingssysteem</h2>
     <div id="koppel-info"></div>
-    <div class="verborgen" id="module-vraag">
-      <label for="module-id">Deellink of id van de boekingsmodule</label>
-      <input id="module-id" type="text" placeholder="plak hier de link uit de clubapp">
-      <p class="hint">Open de clubapp, ga naar de boekingsmodule en gebruik <b>Delen > Kopieer
-        link</b> (of lange tik op de module). Plak die link hier; de wizard haalt het id
-        eruit. Een los id van 24 tekens werkt ook. Dit hoef je maar één keer te doen.</p>
-    </div>
+    <p class="hint">De wizard zoekt zelf de vereniging, de boekingsmodule en de banen op.</p>
     <div class="nav">
       <button id="terug-1">Terug</button>
       <button class="primair" id="knop-koppel">Doorgaan</button>
@@ -170,7 +164,7 @@ const DAGEN = ["maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag","
 const KORT = ["ma","di","wo","do","vr","za","zo"];
 const DAG_KORT = { mon:"ma", tue:"di", wed:"wo", thu:"do", fri:"vr", sat:"za", sun:"zo" };
 const S = { email:"", wachtwoord:"", club:"", groepen:[], sport:null, banen:[],
-            baan:null, spelers:[], aantal:4, ik:{key:"",naam:""}, moduleId:"" };
+            baan:null, spelers:[], aantal:4, ik:{key:"",naam:""} };
 
 const $ = (id) => document.getElementById(id);
 
@@ -226,14 +220,7 @@ async function koppelen() {
   fout("fout-2", "");
   $("knop-koppel").disabled = true; bezig("bezig-2", true);
   try {
-    const body = S.moduleId ? { module_id: S.moduleId } : {};
-    const data = await bel("api/koppel", body);
-    if (data.module_id_nodig) {
-      $("module-vraag").classList.remove("verborgen");
-      fout("fout-2", data.melding + " Vul hieronder de module-id in of sla over als je club hem niet gebruikt.");
-      return;
-    }
-    $("module-vraag").classList.add("verborgen");
+    const data = await bel("api/koppel", {});
     S.groepen = data.sporten || [];
     $("koppel-info").innerHTML = '<p class="goed">Boekingssysteem: ' + (data.club || S.club) + "</p>" +
       (data.contact ? '<p class="hint">Ingelogd als ' + data.contact + "</p>" : "");
@@ -245,10 +232,7 @@ async function koppelen() {
     $("knop-koppel").disabled = false; bezig("bezig-2", false);
   }
 }
-$("knop-koppel").onclick = () => {
-  S.moduleId = $("module-id").value.trim() || S.moduleId;
-  koppelen();
-};
+$("knop-koppel").onclick = () => koppelen();
 $("terug-1").onclick = () => toon("stap-1");
 
 // ---------------------------------------------------------------- stap 3

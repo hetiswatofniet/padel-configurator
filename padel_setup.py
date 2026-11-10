@@ -125,26 +125,50 @@ def community_naam(sess, token: str, cid: str, mid: str) -> str:
     return cid
 
 
-def vind_boekingsmodule(sess, token: str, cid: str, mid: str, override: str | None) -> str:
-    """Zoek de module-id van de AllUnited-koppeling ('Baan reserveringen')."""
+def _menu_modules(boom, gevonden: list) -> list:
+    """Verzamel (moduleType, module_id) uit de menu-boom van de clubapp."""
+    if isinstance(boom, dict):
+        if boom.get("module_id") and boom.get("moduleType"):
+            gevonden.append((str(boom["moduleType"]).upper(), boom["module_id"]))
+        for waarde in boom.values():
+            _menu_modules(waarde, gevonden)
+    elif isinstance(boom, list):
+        for item in boom:
+            _menu_modules(item, gevonden)
+    return gevonden
+
+
+def vind_boekingsmodule(sess, token: str, cid: str, mid: str,
+                        override: str | None = None) -> str:
+    """Zoek de module-id van de AllUnited-koppeling ('Baan reserveringen').
+
+    Het menu van de clubapp (`customizations/menu`) noemt per tegel het type en de
+    module-id; dat is dezelfde lijst die de app gebruikt, dus werkt dit voor elke
+    vereniging op hetzelfde platform.
+    """
     h = dict(SOCIE_HEADERS, Authorization=f"bearer {token}", membership_id=mid)
 
-    kandidaten = []
-    if override:
-        kandidaten.append(override)
-    r = sess.get(f"{SOCIE}/v2/app/communities/{cid}/pages", headers=h, timeout=20)
+    kandidaten = [override] if override else []
+    r = sess.get(f"{SOCIE}/v2/app/communities/{cid}/customizations/menu",
+                 headers=h, timeout=20)
     if r.status_code == 200:
-        gezien = set()
-        for pagina in r.json():
-            module_id = pagina.get("module_id")
-            if module_id and module_id not in gezien:
-                gezien.add(module_id)
+        modules = _menu_modules(r.json(), [])
+        for module_type, module_id in modules:
+            if module_type.startswith("ALLUNITED") and module_id not in kandidaten:
                 kandidaten.append(module_id)
+
+    if not kandidaten:
+        r = sess.get(f"{SOCIE}/v2/app/communities/{cid}/pages", headers=h, timeout=20)
+        if r.status_code == 200:
+            for pagina in r.json():
+                module_id = pagina.get("module_id")
+                if module_id and module_id not in kandidaten:
+                    kandidaten.append(module_id)
 
     for module_id in kandidaten:
         r = sess.get(f"{SOCIE}/v2/app/communities/{cid}/modules/{module_id}/allunited_pwa/url",
                      headers=h, timeout=15)
-        if r.status_code == 200 and r.json().get("url"):
+        if r.status_code == 200 and (r.json() or {}).get("url"):
             return module_id
     return ""
 
