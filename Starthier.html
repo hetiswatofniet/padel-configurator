@@ -63,7 +63,7 @@
 <header>
   <h1>Baantjes-reservering instellen</h1>
   <p class="sub">Maakt de bestanden voor Home Assistant. Je logt hieronder in bij de clubapp.</p>
-  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.0</p>
+  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.1</p>
 </header>
 
 <main>
@@ -422,9 +422,9 @@ $("knop-genereer").onclick = async () => {
         "<br><br>Open <code>INSTALL.md</code> voor de laatste stappen (shell_command en de automation importeren).";
     } else {
       $("doel-info").innerHTML =
-        "Snelste route: zet <code>padel_installatie.yaml</code> in <code>/config/packages/</code>, " +
-        "herlaad de YAML en draai het script <b>Padel: bestanden klaarzetten</b> één keer met je " +
-        "inloggegevens. De exacte stappen staan in <code>INSTALL.md</code>.";
+        "Snelste route: <code>padel_installatie.yaml</code> in <code>/config/packages/</code>, " +
+        "de YAML herladen, <code>padel_script.yaml</code> in de UI bij Scripts plakken en dat " +
+        "script één keer uitvoeren met je inloggegevens. De stappen staan in <code>INSTALL.md</code>.";
     }
     toon("stap-4");
   } catch (e) {

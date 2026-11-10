@@ -451,9 +451,10 @@ PAKKET_KOP = """# Padel-reservering: één pakket voor Home Assistant
 #            packages: !include_dir_named packages
 #      en herstart Home Assistant een keer.
 #   2. Ontwikkelaarshulpmiddelen > YAML > "Alle YAML-configuratie herladen".
-#   3. Instellingen > Automatiseringen & scènes > Scripts >
-#      "Padel: bestanden klaarzetten" > Uitvoeren, met je club-e-mailadres en wachtwoord.
-#   4. Testen: Ontwikkelaarshulpmiddelen > Acties > shell_command.book_padel_dry_run.
+#   3. Plak padel_script.yaml in de UI bij Scripts (nieuw script, YAML bewerken),
+#      zodat het script in scripts.yaml staat en bewerkbaar blijft.
+#   4. Voer dat script uit met je club-e-mailadres en wachtwoord.
+#   5. Testen: Ontwikkelaarshulpmiddelen > Acties > shell_command.book_padel_dry_run.
 #
 # Dit bestand is gegenereerd door de configurator en bevat geen inloggegevens.
 """
@@ -526,44 +527,60 @@ def render_pakket(config: dict, notify_entity: str, slot_eind: str,
           " {{ gebruikersnaam | base64_encode }} {{ wachtwoord | base64_encode }}\n"
         + "  book_padel: python3 /config/scripts/book_padel.py\n"
         + "  book_padel_dry_run: python3 /config/scripts/book_padel.py --dry-run\n"
-        + "\nscript:\n"
-        + "  padel_bestanden_klaarzetten:\n"
-        + '    alias: "Padel: bestanden klaarzetten"\n'
-        + "    description: >-\n"
-        + "      Zet het boekingsscript in /config/scripts en bewaar je inloggegevens.\n"
-        + "      Eenmalig uitvoeren; daarna doet de automation het werk.\n"
-        + "    trace: false\n"
-        + "    fields:\n"
-        + "      gebruikersnaam:\n"
-        + "        name: Gebruikersnaam (e-mailadres van je clubaccount)\n"
-        + "        required: true\n"
-        + "        selector:\n"
-        + "          text:\n"
-        + "      wachtwoord:\n"
-        + "        name: Wachtwoord\n"
-        + "        required: true\n"
-        + "        selector:\n"
-        + "          text:\n"
-        + "            type: password\n"
-        + "    sequence:\n"
-        + "      - action: shell_command.padel_bestanden_neerzetten\n"
-        + "        data: {}\n"
-        + "      - action: shell_command.padel_inloggegevens_zetten\n"
-        + "        data:\n"
-        + '          gebruikersnaam: "{{ gebruikersnaam }}"\n'
-        + '          wachtwoord: "{{ wachtwoord }}"\n'
-        + "      - action: persistent_notification.create\n"
-        + "        data:\n"
-        + "          title: Padel-reservering\n"
-        + "          message: >-\n"
-        + "            Bestanden staan in /config/scripts en de inloggegevens zijn opgeslagen.\n"
-        + "            Test met shell_command.book_padel_dry_run; de automation boekt hierna\n"
-        + "            automatisch volgens de ingestelde dag en tijd.\n"
         + "\nautomation:\n"
         + aut_blok
         + "\n"
     )
     return pakket, trig
+
+
+
+SCRIPT_KOP = """# Script voor Home Assistant (plakken in de UI)
+#
+# Instellingen -> Automatiseringen & scènes -> Scripts -> + Nieuw script
+#   -> rechtsboven de drie puntjes -> "YAML bewerken" -> alles selecteren,
+#   deze inhoud erin plakken -> Opslaan.
+#
+# Het script komt daarmee in scripts.yaml terecht, zodat je het later in de
+# interface kunt aanpassen.
+"""
+
+
+def render_script_ui() -> str:
+    """Het klaarzet-script als losse snippet voor de UI (scripts.yaml)."""
+    return SCRIPT_KOP + """alias: "Padel: bestanden klaarzetten"
+description: >-
+  Zet het boekingsscript in /config/scripts en bewaar je inloggegevens.
+  Eenmalig uitvoeren; daarna doet de automation het werk.
+trace:
+  script.padel_bestanden_klaarzetten: false
+fields:
+  gebruikersnaam:
+    name: Gebruikersnaam (e-mailadres van je clubaccount)
+    required: true
+    selector:
+      text:
+  wachtwoord:
+    name: Wachtwoord
+    required: true
+    selector:
+      text:
+        type: password
+sequence:
+  - action: shell_command.padel_bestanden_neerzetten
+    data: {}
+  - action: shell_command.padel_inloggegevens_zetten
+    data:
+      gebruikersnaam: "{{ gebruikersnaam }}"
+      wachtwoord: "{{ wachtwoord }}"
+  - action: persistent_notification.create
+    data:
+      title: Padel-reservering
+      message: >-
+        Bestanden staan in /config/scripts en de inloggegevens zijn opgeslagen.
+        Test met shell_command.book_padel_dry_run; de automation boekt hierna
+        automatisch volgens de ingestelde dag en tijd.
+"""
 
 
 def render_install(notify_entity: str, trig: dict,
@@ -582,7 +599,11 @@ of gebruik `persistent_notification.create`."""
 
 Gegenereerd door de configurator. Kies één van de twee routes.
 
-## Route A (aanbevolen): één pakketbestand
+Het pakketbestand bevat de `shell_command`-definities en de automation. Het script
+komt bewust **niet** uit het pakket: pas je het in de UI aan, dan bewaart Home
+Assistant het in `scripts.yaml` en blijft het bewerkbaar.
+
+## Route A (aanbevolen): pakketbestand + script in de UI
 
 1. Zet `padel_installatie.yaml` in de map `/config/packages/`
    (map aanmaken als die er nog niet is).
@@ -596,11 +617,16 @@ Gegenereerd door de configurator. Kies één van de twee routes.
 
    Stond het er al, dan is herladen genoeg:
    Ontwikkelaarshulpmiddelen -> YAML -> **Alle YAML-configuratie herladen**.
-3. Ga naar Instellingen -> Automatiseringen & scènes -> **Scripts** ->
-   *Padel: bestanden klaarzetten* -> **Uitvoeren**. Vul je club-e-mailadres en
-   wachtwoord in. Het script zet `book_padel.py` in `/config/scripts` en bewaart de
-   inloggegevens in `book_padel_secrets.json` (alleen leesbaar voor de eigenaar).
-4. Testen: Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.book_padel_dry_run`.
+3. Zet het script in Home Assistant, zodat je het later in de interface kunt
+   aanpassen: Instellingen -> Automatiseringen & scènes -> **Scripts** ->
+   **+ Nieuw script** -> rechtsboven de drie puntjes -> **YAML bewerken** ->
+   alles selecteren en de inhoud van `padel_script.yaml` erin plakken -> **Opslaan**.
+   (Alternatief: dezelfde inhoud onderaan `scripts.yaml` plakken en
+   Ontwikkelaarshulpmiddelen -> Acties -> `script.reload`.)
+4. Start het script: **Uitvoeren** en vul je club-e-mailadres en wachtwoord in.
+   Het script zet `book_padel.py` in `/config/scripts` en bewaart de inloggegevens
+   in `book_padel_secrets.json` (alleen leesbaar voor de eigenaar).
+5. Testen: Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.book_padel_dry_run`.
    Zet een baan in het winkelmandje zonder te bevestigen. Zie je
    "Padelbaan X gereserveerd op ..., niet bevestigd", dan werkt alles.
 
@@ -610,6 +636,21 @@ Daarna draait de automation vanzelf: elke **{trig['weekday']}** om
 ### Notificatie
 
 {notif_uitleg}
+
+### Wachtwoord en traces
+
+Het script heeft `trace` uitgezet, zodat je wachtwoord niet in de trace-historie
+belandt. Krijg je bij het opslaan een foutmelding over `trace`, verwijder dan deze
+twee regels uit het script:
+
+```yaml
+trace:
+  script.padel_bestanden_klaarzetten: false
+```
+
+Het script werkt ook zonder; wis in dat geval na het uitvoeren de traces
+(Instellingen -> Automatiseringen & scènes -> Scripts -> het script ->
+drie puntjes -> Traces wissen).
 
 ### Later iets wijzigen
 
@@ -689,6 +730,7 @@ def bouw_bestanden(config: dict, notify_entity: str, slot_eind: str,
     bestanden = {
         "book_padel.py": script_tekst,
         "padel_installatie.yaml": pakket,
+        "padel_script.yaml": render_script_ui(),
         "book_padel_automation.yaml": automation,
         "INSTALL.md": render_install(notify_entity, trig),
     }
