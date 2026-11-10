@@ -21,6 +21,15 @@ jobs:
         run: python -m pip install --upgrade pip pyinstaller requests
       - name: Bouwen
         run: pyinstaller --noconfirm --clean build.spec
+      - name: Rooktest (programma starten en pagina ophalen)
+        shell: bash
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          if [ -f dist/padel-configurator.exe ]; then BIN=dist/padel-configurator.exe; else BIN=dist/padel-configurator; fi
+          VERSIE=$(python -c "import re;print(re.search(r'VERSIE = \"([0-9.]+)\"', open('configureer.py').read()).group(1))")
+          echo "getest wordt $BIN, versie $VERSIE"
+          python scripts/rooktest.py "$BIN" --verwacht "$VERSIE"
       - name: Naam geven
         shell: bash
         run: |
