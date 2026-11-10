@@ -17,7 +17,10 @@ Download bij **Releases** het bestand voor jouw computer:
 Start het programma. Er verschijnt een venster met een adres als
 `http://192.168.1.20:8124/Ab12Cd34Ef/`; je browser opent dat meestal vanzelf. Doorloop
 de wizard: inloggen, sport en baan kiezen, dag en tijd, met wie je speelt. Klik
-**Bestanden maken** en download de vier bestanden. Daarna mag je het venster sluiten.
+**Bestanden maken** en download de bestanden. Daarna mag je het venster sluiten.
+
+Sinds v1.1.0 zit er ook `padel_installatie.yaml` bij: één pakketbestand waarmee de
+hele installatie in Home Assistant in drie handelingen klaar is.
 
 - **Windows:** SmartScreen zegt "Windows heeft uw pc beschermd" -> *Meer informatie* ->
   *Toch uitvoeren*. Het programma is niet ondertekend.
@@ -35,6 +38,26 @@ de wizard: inloggen, sport en baan kiezen, dag en tijd, met wie je speelt. Klik
 3. Open het adres uit de terminal op je laptop en doorloop de wizard.
 4. De bestanden staan daarna direct in `/config/scripts`. Stop met Ctrl+C.
 
+## Installeren in Home Assistant (snelste route)
+
+1. Zet `padel_installatie.yaml` in `/config/packages/` (map aanmaken als die er nog niet
+   is). Staat `packages:` nog niet aan in `configuration.yaml`, voeg dan toe en herstart
+   één keer:
+
+   ```yaml
+   homeassistant:
+     packages: !include_dir_named packages
+   ```
+
+2. Ontwikkelaarshulpmiddelen -> YAML -> **Alle YAML-configuratie herladen**.
+3. Instellingen -> Automatiseringen & scènes -> **Scripts** ->
+   *Padel: bestanden klaarzetten* -> **Uitvoeren** met je club-e-mailadres en wachtwoord.
+   Dat script zet `book_padel.py` neer en bewaart de inloggegevens (mode 600).
+4. Testen: Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.book_padel_dry_run`.
+
+Zonder `packages` (bijvoorbeeld Home Assistant Container) gebruik je de losse bestanden;
+die route staat in `INSTALL.md` dat de wizard meelevert.
+
 ## Wat je krijgt
 
 | bestand | waar het heen gaat |
@@ -43,6 +66,7 @@ de wizard: inloggen, sport en baan kiezen, dag en tijd, met wie je speelt. Klik
 | `book_padel_secrets.json` | `/config/scripts/book_padel_secrets.json` |
 | `book_padel_automation.yaml` | importeren bij Automatiseringen |
 | `INSTALL.md` | de exacte stappen in Home Assistant |
+| `padel_installatie.yaml` | `/config/packages/` (alles-in-één route) |
 
 ## Belangrijk
 

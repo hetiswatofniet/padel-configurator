@@ -73,6 +73,12 @@ def plus_minuten(hhmm: str, minuten: int) -> str:
     return t.strftime("%H:%M")
 
 
+def volgende_speeldag(weekday: int) -> date:
+    """Eerstvolgende keer dat er gespeeld wordt (vandaag telt niet mee)."""
+    vandaag = date.today()
+    return vandaag + timedelta(days=(weekday - vandaag.weekday()) % 7 or 7)
+
+
 def arg_waarde(naam: str):
     if naam in sys.argv:
         i = sys.argv.index(naam)
@@ -174,8 +180,7 @@ def main() -> None:
     dry_run = "--dry-run" in sys.argv
 
     # ---- doeldata
-    dagen_vooruit = int(CONFIG["days_ahead"])
-    booking_date = arg_waarde("--date") or (date.today() + timedelta(days=dagen_vooruit)).isoformat()
+    booking_date = arg_waarde("--date") or volgende_speeldag(int(CONFIG["weekday"])).isoformat()
     d = date.fromisoformat(booking_date)
     if d.weekday() != int(CONFIG["weekday"]) and not arg_waarde("--date"):
         fout(f"datum {datum_nl(booking_date)} is geen {DAGEN[int(CONFIG['weekday'])]} "
@@ -189,6 +194,10 @@ def main() -> None:
         creds = json.loads(secrets_path.read_text(encoding="utf-8"))
     except ValueError:
         fout("book_padel_secrets.json is geen geldige JSON")
+
+    if "VUL_IN" in (creds.get("email") or "") or "VUL_IN" in (creds.get("password") or ""):
+        fout("De inloggegevens zijn nog niet ingevuld. Draai in Home Assistant het script "
+             "'Padel: bestanden klaarzetten' en vul daar je e-mailadres en wachtwoord in.")
 
     s = requests.Session()
     s.headers["Accept"] = "application/json"

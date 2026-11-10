@@ -18,6 +18,7 @@ Gebruik:
 
 import argparse
 import base64
+import gzip
 import getpass
 import json
 import pprint
@@ -441,109 +442,217 @@ actions:
     return yaml, {"weekday": trig_weekday, "time": trig_time}
 
 
-def render_install(notify_entity: str, trig: dict, bestandsnaam: str = "book_padel_secrets.json") -> str:
+PAKKET_KOP = """# Padel-reservering: één pakket voor Home Assistant
+#
+# Installatie (eenmalig):
+#   1. Zet dit bestand in /config/packages/ (map aanmaken als die er nog niet is).
+#      Staat `packages:` nog niet aan in configuration.yaml, voeg dan toe:
+#          homeassistant:
+#            packages: !include_dir_named packages
+#      en herstart Home Assistant een keer.
+#   2. Ontwikkelaarshulpmiddelen > YAML > "Alle YAML-configuratie herladen".
+#   3. Instellingen > Automatiseringen & scènes > Scripts >
+#      "Padel: bestanden klaarzetten" > Uitvoeren, met je club-e-mailadres en wachtwoord.
+#   4. Testen: Ontwikkelaarshulpmiddelen > Acties > shell_command.book_padel_dry_run.
+#
+# Dit bestand is gegenereerd door de configurator en bevat geen inloggegevens.
+"""
+
+CONFIGUREER_HULP = """
+#!/usr/bin/env python3
+# Schrijft de inloggegevens voor de padel-reservering weg (eenmalig).
+import base64
+import json
+import pathlib
+import sys
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("gebruik: padel_configureren.py <gebruikersnaam-b64> <wachtwoord-b64>")
+        return 2
+    email = base64.b64decode(sys.argv[1]).decode().strip()
+    wachtwoord = base64.b64decode(sys.argv[2]).decode()
+    if not email or not wachtwoord:
+        print("Leeg e-mailadres of wachtwoord; er is niets weggeschreven.")
+        return 2
+    pad = pathlib.Path(__file__).with_name("book_padel_secrets.json")
+    pad.write_text(json.dumps({"email": email, "password": wachtwoord}, indent=2) + chr(10))
+    pad.chmod(0o600)
+    print("Inloggegevens opgeslagen voor " + email)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+"""
+
+
+def _payload(tekst: str) -> str:
+    """Gzip + base64 van de scripts, netjes in regels van 76 tekens."""
+    b64 = base64.b64encode(gzip.compress(tekst.encode("utf-8"))).decode("ascii")
+    return "\n".join("    " + b64[i:i + 76] for i in range(0, len(b64), 76))
+
+
+def render_pakket(config: dict, notify_entity: str, slot_eind: str,
+                  script_tekst: str) -> tuple:
+    """Eén YAML-pakket met shell_commands, het klaarzet-script en de automation."""
+    automation_yaml, trig = render_automation(config, notify_entity, slot_eind)
+    regels = automation_yaml.rstrip("\n").split("\n")
+    aut_blok = "\n".join(("  - " if i == 0 else "    ") + r for i, r in enumerate(regels))
+
+    pakket = (
+        PAKKET_KOP
+        + "\nshell_command:\n"
+        + "  padel_bestanden_neerzetten: |\n"
+        + "    set -e\n"
+        + "    mkdir -p /config/scripts\n"
+        + "    cat > /config/scripts/.padel_payload.b64 <<'PADEL_EOF'\n"
+        + _payload(script_tekst) + "\n"
+        + "    PADEL_EOF\n"
+        + '    python3 -c "import base64,gzip,pathlib;pad=pathlib.Path(\'/config/scripts/book_padel.py\');'
+          'pad.write_bytes(gzip.decompress(base64.b64decode(pathlib.Path(\'/config/scripts/.padel_payload.b64\')'
+          '.read_text())));pad.chmod(0o644)"\n'
+        + "    rm -f /config/scripts/.padel_payload.b64\n"
+        + "    cat > /config/scripts/padel_configureren.py <<'PADEL_HULP'\n"
+        + "\n".join("    " + regel for regel in CONFIGUREER_HULP.splitlines()) + "\n"
+        + "    PADEL_HULP\n"
+        + "    python3 -c \"import json,pathlib;pad=pathlib.Path('/config/scripts/book_padel_secrets.json');"
+          "schrijf=(not pad.exists()) or 'VUL_IN' in pad.read_text();"
+          "pad.write_text(json.dumps({'email':'VUL_IN','password':'VUL_IN'},indent=2)+chr(10)) if schrijf else None;"
+          "pad.chmod(0o600)\"\n"
+        + "  padel_inloggegevens_zetten: >-\n"
+        + "    python3 /config/scripts/padel_configureren.py"
+          " {{ gebruikersnaam | base64_encode }} {{ wachtwoord | base64_encode }}\n"
+        + "  book_padel: python3 /config/scripts/book_padel.py\n"
+        + "  book_padel_dry_run: python3 /config/scripts/book_padel.py --dry-run\n"
+        + "\nscript:\n"
+        + "  padel_bestanden_klaarzetten:\n"
+        + '    alias: "Padel: bestanden klaarzetten"\n'
+        + "    description: >-\n"
+        + "      Zet het boekingsscript in /config/scripts en bewaar je inloggegevens.\n"
+        + "      Eenmalig uitvoeren; daarna doet de automation het werk.\n"
+        + "    trace: false\n"
+        + "    fields:\n"
+        + "      gebruikersnaam:\n"
+        + "        name: Gebruikersnaam (e-mailadres van je clubaccount)\n"
+        + "        required: true\n"
+        + "        selector:\n"
+        + "          text:\n"
+        + "      wachtwoord:\n"
+        + "        name: Wachtwoord\n"
+        + "        required: true\n"
+        + "        selector:\n"
+        + "          text:\n"
+        + "            type: password\n"
+        + "    sequence:\n"
+        + "      - action: shell_command.padel_bestanden_neerzetten\n"
+        + "        data: {}\n"
+        + "      - action: shell_command.padel_inloggegevens_zetten\n"
+        + "        data:\n"
+        + '          gebruikersnaam: "{{ gebruikersnaam }}"\n'
+        + '          wachtwoord: "{{ wachtwoord }}"\n'
+        + "      - action: persistent_notification.create\n"
+        + "        data:\n"
+        + "          title: Padel-reservering\n"
+        + "          message: >-\n"
+        + "            Bestanden staan in /config/scripts en de inloggegevens zijn opgeslagen.\n"
+        + "            Test met shell_command.book_padel_dry_run; de automation boekt hierna\n"
+        + "            automatisch volgens de ingestelde dag en tijd.\n"
+        + "\nautomation:\n"
+        + aut_blok
+        + "\n"
+    )
+    return pakket, trig
+
+
+def render_install(notify_entity: str, trig: dict,
+                   bestandsnaam: str = "book_padel_secrets.json") -> str:
     if notify_entity:
-        notif_regel = f"- notificatie naar `{notify_entity}`"
-        notif_stap = f"""## 4. Notificatie
-
-De automation stuurt het resultaat naar `{notify_entity}`. Klopt die entiteit
-niet, pas hem aan in de automation (actie `notify.send_message`)."""
+        notif_uitleg = f"""De automation in het pakket stuurt het resultaat naar
+`{notify_entity}`. Klopt die entiteit niet, pas hem aan in
+`padel_installatie.yaml` (actie `notify.send_message`)."""
     else:
-        notif_regel = "- notificatie: **nog instellen** (zie stap 4)"
-        notif_stap = """## 4. Notificatie instellen (handmatig)
+        notif_uitleg = """De automation is gegenereerd **zonder** notificatie-actie. In
+`padel_installatie.yaml` staat bij de automation een uitgecommentarieerd blok met
+`notify.MIJN_TELEFOON`. Vervang dat door je eigen entiteit en haal de `#` weg,
+of gebruik `persistent_notification.create`."""
 
-De automation is gegenereerd **zonder** notificatie-actie. In
-`book_padel_automation.yaml` staat een uitgecommentarieerd blok met
-`notify.MIJN_TELEFOON`. Vervang dat door je eigen entiteit (bijvoorbeeld
-`notify.iphone_van_ferry`, of `persistent_notification.create` als je alleen
-in Home Assistant wilt melden) en haal de `#` aan het begin van die regels weg.
+    return f"""# Installatie in Home Assistant
 
-Zonder deze stap reserveert de automation wel, maar krijg je geen bericht als
-er iets misgaat."""
+Gegenereerd door de configurator. Kies één van de twee routes.
 
-    tekst = f"""# Installatie in Home Assistant
+## Route A (aanbevolen): één pakketbestand
 
-Gegenereerd door padel_setup.py. Volg de stappen in deze volgorde.
+1. Zet `padel_installatie.yaml` in de map `/config/packages/`
+   (map aanmaken als die er nog niet is).
+2. Staat `packages:` nog niet aan in `configuration.yaml`, voeg dan toe en herstart
+   Home Assistant één keer:
 
-## 1. Bestanden naar Home Assistant
+   ```yaml
+   homeassistant:
+     packages: !include_dir_named packages
+   ```
 
-Kopieer met de File editor (of Studio Code Server / Samba):
+   Stond het er al, dan is herladen genoeg:
+   Ontwikkelaarshulpmiddelen -> YAML -> **Alle YAML-configuratie herladen**.
+3. Ga naar Instellingen -> Automatiseringen & scènes -> **Scripts** ->
+   *Padel: bestanden klaarzetten* -> **Uitvoeren**. Vul je club-e-mailadres en
+   wachtwoord in. Het script zet `book_padel.py` in `/config/scripts` en bewaart de
+   inloggegevens in `book_padel_secrets.json` (alleen leesbaar voor de eigenaar).
+4. Testen: Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.book_padel_dry_run`.
+   Zet een baan in het winkelmandje zonder te bevestigen. Zie je
+   "Padelbaan X gereserveerd op ..., niet bevestigd", dan werkt alles.
 
-| bestand | doelpad in Home Assistant |
-|---|---|
-| `book_padel.py` | `/config/scripts/book_padel.py` |
-| `book_padel_secrets.json` | `/config/scripts/book_padel_secrets.json` |
+Daarna draait de automation vanzelf: elke **{trig['weekday']}** om
+**{trig['time'][:-3]}**.
 
-De map `/config/scripts` aanmaken als hij nog niet bestaat.
+### Notificatie
 
-## 2. shell_command toevoegen
+{notif_uitleg}
 
-Zet dit in `configuration.yaml` (eenmalig, onderaan mag):
+### Later iets wijzigen
 
-```yaml
-shell_command:
-  book_padel: "python3 /config/scripts/book_padel.py"
-```
+Draai de configurator opnieuw en vervang `padel_installatie.yaml`. Daarna
+"Alle YAML-configuratie herladen" en het script opnieuw uitvoeren (je
+inloggegevens blijven bewaard).
 
-`command_line`/`shell_command` herlaadt niet via de UI: **Home Assistant
-opnieuw starten** (Instellingen -> Systeem -> Opnieuw opstarten) of
-Ontwikkelaarhulpmiddelen -> Acties -> `shell_command.reload`
-(beschikbaar vanaf 2024.11).
+## Route B (handmatig)
 
-## 3. Automation importeren
+Werkt je Home Assistant zonder `packages` (bijvoorbeeld Home Assistant Container),
+gebruik dan de losse bestanden:
 
-Instellingen -> Automatiseringen -> **Importeren** (of Nieuwe automatisering ->
-Rechtsboven -> YAML bewerken) en plak de inhoud van
-`book_padel_automation.yaml`.
+1. `book_padel.py` en `{bestandsnaam}` naar `/config/scripts/`
+   (map aanmaken als die er nog niet is).
+2. Zet in `configuration.yaml`:
 
-Controleer daarna:
+   ```yaml
+   shell_command:
+     book_padel: "python3 /config/scripts/book_padel.py"
+     book_padel_dry_run: "python3 /config/scripts/book_padel.py --dry-run"
+   ```
+
+   Herladen met Ontwikkelaarshulpmiddelen -> Acties -> `shell_command.reload`,
+   of Home Assistant opnieuw starten.
+3. Importeer `book_padel_automation.yaml` bij Automatiseringen
+   (Nieuwe automatisering -> Rechtsboven -> YAML bewerken, of Importeren).
+4. Notificatie: zie de uitgecommentarieerde actie in `book_padel_automation.yaml`.
+
+## Controle
 
 - trigger: elke **{trig['weekday']}** om **{trig['time'][:-3]}**
 - actie: `shell_command.book_padel`
-{notif_regel}
+- notificatie: {'`' + notify_entity + '`' if notify_entity else 'nog instellen'}
 
-{notif_stap}
-
-## 5. Testen zonder te reserveren
-
-Open een terminal in Home Assistant en run:
-
-```bash
-python3 /config/scripts/book_padel.py --dry-run
-```
-
-Verwacht: `DRY-RUN: <baan> gereserveerd op <datum> van <tijd> tot <tijd>`.
-De winkelwagenregel verdwijnt vanzelf (ongeveer 3 minuten).
-
-Of test met een datum die al boekbaar is:
-
-```bash
-python3 /config/scripts/book_padel.py --dry-run --date {date.today().isoformat()}
-```
-
-## 6. Echt reserveren
-
-De automation doet dit automatisch. Handmatig:
-
-```bash
-python3 /config/scripts/book_padel.py
-```
-
-Uitvoer bij succes: `<baan> gereserveerd op <datum> van <tijd> tot <tijd>`.
-Bij een vol tijdslot meldt het script of een half uur eerder of later nog
-iets vrij is.
-
-## Problemen
+## Als er iets misgaat
 
 | melding | oorzaak |
 |---|---|
-| `inloggen bij Socie mislukt` | wachtwoord gewijzigd? pas `book_padel_secrets.json` aan |
-| `HTTP 429` | te veel inlogpogingen; even wachten |
-| `ophalen boekingslink mislukt` | module-id klopt niet meer (club heeft iets gewijzigd) -> wizard opnieuw draaien |
-| `geen baan vrij om ...` | slot al bezet; script noemt alternatieven |
-| `datum ... is geen ...` | de automation draait op de verkeerde dag |
+| `inloggegevens zijn nog niet ingevuld` | script *Padel: bestanden klaarzetten* nog niet gedraaid |
+| `inloggen bij Socie mislukt` | wachtwoord gewijzigd; script opnieuw uitvoeren |
+| `geen padelbaan vrij om ...` | tijdslot bezet; de automation meldt de alternatieven |
+| `ophalen boekingslink mislukt` | club heeft de koppeling gewijzigd; configurator opnieuw draaien |
 """
-    return tekst
 
 
 SECRETS_VELDEN = ("email", "password")
@@ -575,8 +684,11 @@ def bouw_bestanden(config: dict, notify_entity: str, slot_eind: str,
     if not template.exists():
         raise Fout("template_book_padel.py niet gevonden naast padel_setup.py")
     automation, trig = render_automation(config, notify_entity, slot_eind)
+    script_tekst = render_script(template, config)
+    pakket, _ = render_pakket(config, notify_entity, slot_eind, script_tekst)
     bestanden = {
-        "book_padel.py": render_script(template, config),
+        "book_padel.py": script_tekst,
+        "padel_installatie.yaml": pakket,
         "book_padel_automation.yaml": automation,
         "INSTALL.md": render_install(notify_entity, trig),
     }

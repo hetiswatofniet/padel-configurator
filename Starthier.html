@@ -63,7 +63,7 @@
 <header>
   <h1>Baantjes-reservering instellen</h1>
   <p class="sub">Maakt de bestanden voor Home Assistant. Je logt hieronder in bij de clubapp.</p>
-  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.0.4</p>
+  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.0</p>
 </header>
 
 <main>
@@ -155,6 +155,8 @@
     <p class="hint" id="samenvatting"></p>
     <div id="bestanden"></div>
     <p class="hint" id="doel-info"></p>
+    <p class="hint">Het pakket-bestand <code>padel_installatie.yaml</code> regelt alles in één keer;
+      de losse bestanden zijn de handmatige route.</p>
   </section>
 </main>
 
@@ -419,9 +421,10 @@ $("knop-genereer").onclick = async () => {
         data.geschreven.map((p) => "<code>" + p + "</code>").join("<br>") +
         "<br><br>Open <code>INSTALL.md</code> voor de laatste stappen (shell_command en de automation importeren).";
     } else {
-      $("doel-info").textContent =
-        "Zet book_padel.py en book_padel_secrets.json in /config/scripts, voeg de shell_command toe " +
-        "en importeer de automation. De stappen staan in INSTALL.md.";
+      $("doel-info").innerHTML =
+        "Snelste route: zet <code>padel_installatie.yaml</code> in <code>/config/packages/</code>, " +
+        "herlaad de YAML en draai het script <b>Padel: bestanden klaarzetten</b> één keer met je " +
+        "inloggegevens. De exacte stappen staan in <code>INSTALL.md</code>.";
     }
     toon("stap-4");
   } catch (e) {
