@@ -30,7 +30,7 @@ import padel_setup as setup
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 PAGINA = ROOT / "Starthier.html"
-VERSIE = "1.2.4"
+VERSIE = "1.2.5"
 POORT = 8124
 TOEGANG = secrets.token_urlsafe(8)
 DOEL: Path | None = None
@@ -182,6 +182,8 @@ def api_genereer(body: dict) -> dict:
             "config": config, "geschreven": geschreven}
 
 
+LOGPAD: Path | None = None          # gevuld in main(), gebruikt door de foutlog
+
 ROUTES = {"/api/login": api_login, "/api/koppel": api_koppel,
           "/api/spelers": api_spelers, "/api/genereer": api_genereer}
 
@@ -237,8 +239,15 @@ class Handler(BaseHTTPRequestHandler):
         except requests.RequestException as e:
             self._json(502, {"fout": f"Netwerkfout: {e}"})
         except Exception as e:                          # noqa: BLE001
+            spoor = traceback.format_exc()
+            if LOGPAD:                                  # ook naar het logbestand,
+                try:                                    # voor diagnose op afstand
+                    with open(LOGPAD, "a", encoding="utf-8") as log:
+                        log.write(f"Fout bij {self._pad()}: {e}\n{spoor}\n")
+                except OSError:
+                    pass
             traceback.print_exc()
-            self._json(500, {"fout": f"Onverwachte fout: {e}"})
+            self._json(500, {"fout": f"Onverwachte fout bij {self._pad()}: {e}"})
 
 
 def lokaal_ip() -> str:
@@ -267,7 +276,9 @@ def logbestand_voorbereiden() -> Path:
 
 def main() -> int:
     global DOEL
+    global LOGPAD
     logpad = logbestand_voorbereiden()
+    LOGPAD = logpad
     parser = argparse.ArgumentParser(description="Configurator voor de baantjes-reservering")
     parser.add_argument("--doel", help="map waar de bestanden direct in geschreven worden "
                                        "(bijv. /config/scripts)")

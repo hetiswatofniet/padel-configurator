@@ -118,11 +118,36 @@ def jwt_claims(token: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(payload))
 
 
+def _json_van(resp, standaard=None):
+    """JSON van een antwoord, of `standaard` als het geen JSON is."""
+    try:
+        waarde = resp.json()
+    except ValueError:
+        return standaard
+    return standaard if waarde is None else waarde
+
+
+def tekst_waarde(resp, sleutel: str) -> str:
+    """String-veld uit een antwoord dat soms platte tekst teruggeeft.
+
+    Sommige clubapps geven bij `allunited_pwa/url` een JSON-string in plaats van
+    {"url": ...}. Zonder deze helper klapt het inlezen met
+    "'str' object has no attribute 'get'".
+    """
+    waarde = _json_van(resp)
+    if isinstance(waarde, dict):
+        return str(waarde.get(sleutel) or "")
+    if isinstance(waarde, str):
+        return waarde.strip().strip('"')
+    return ""
+
+
 def community_naam(sess, token: str, cid: str, mid: str) -> str:
     h = dict(SOCIE_HEADERS, Authorization=f"bearer {token}", membership_id=mid)
     r = sess.get(f"{SOCIE}/v2/app/communities/{cid}", headers=h, timeout=20)
-    if r.status_code == 200:
-        return r.json().get("name") or cid
+    waarde = _json_van(r, {})
+    if r.status_code == 200 and isinstance(waarde, dict):
+        return waarde.get("name") or cid
     return cid
 
 
@@ -161,7 +186,10 @@ def vind_boekingsmodule(sess, token: str, cid: str, mid: str,
     if not kandidaten:
         r = sess.get(f"{SOCIE}/v2/app/communities/{cid}/pages", headers=h, timeout=20)
         if r.status_code == 200:
-            for pagina in r.json():
+            paginas = _json_van(r, [])
+            for pagina in (paginas if isinstance(paginas, list) else []):
+                if not isinstance(pagina, dict):
+                    continue
                 module_id = pagina.get("module_id")
                 if module_id and module_id not in kandidaten:
                     kandidaten.append(module_id)
@@ -169,7 +197,7 @@ def vind_boekingsmodule(sess, token: str, cid: str, mid: str,
     for module_id in kandidaten:
         r = sess.get(f"{SOCIE}/v2/app/communities/{cid}/modules/{module_id}/allunited_pwa/url",
                      headers=h, timeout=15)
-        if r.status_code == 200 and (r.json() or {}).get("url"):
+        if r.status_code == 200 and tekst_waarde(r, "url"):
             return module_id
     return ""
 
@@ -180,11 +208,16 @@ def allunited_sessie(sess, token: str, cid: str, mid: str, module_id: str) -> di
                  headers=h, timeout=20)
     if r.status_code != 200:
         raise Fout(f"Kon de boekingslink niet ophalen ({r.status_code}).")
-    ssostring = r.json()["url"].split("/sso/")[1]
+    boekings_url = tekst_waarde(r, "url")
+    if "/sso/" not in boekings_url:
+        raise Fout(f"De boekingslink heeft een onverwacht formaat: {boekings_url[:120]!r}")
+    ssostring = boekings_url.split("/sso/")[1]
     r = sess.get(f"{AU}/api/sso/webshop_sso.php", params={"ssostring": ssostring}, timeout=25)
     if r.status_code != 200:
         raise Fout(f"Aanmelden bij het boekingssysteem mislukt ({r.status_code}).")
-    j = r.json()
+    j = _json_van(r, {})
+    if not isinstance(j, dict) or "webshopKey" not in j:
+        raise Fout("Het boekingssysteem gaf een onverwacht antwoord bij het aanmelden.")
     return {"headers": {"Accept": "application/json", "x-webshop-key": j["webshopKey"],
                         "Authorization": f"Bearer {j['accessToken']}"},
             "club": j.get("sectionName"), "contact": j.get("contactName")}
@@ -194,7 +227,10 @@ def filter_groups(sess, au: dict) -> list:
     r = _get(sess, f"{AU}/api/booking/webshop/filter-groups", headers=au["headers"], timeout=20)
     if r.status_code != 200:
         raise Fout(f"Kon de sporten niet ophalen ({r.status_code}).")
-    return r.json().get("data") or []
+    waarde = _json_van(r, {})
+    if isinstance(waarde, dict):
+        return waarde.get("data") or []
+    return waarde if isinstance(waarde, list) else []
 
 
 def schema(sess, au: dict, fg_id, datum: str, playercount: int) -> dict:
@@ -203,7 +239,8 @@ def schema(sess, au: dict, fg_id, datum: str, playercount: int) -> dict:
              params={"playercount": str(playercount), "date": datum, "mode": "schematic"})
     if r.status_code != 200:
         return {}
-    return r.json().get("data") or {}
+    waarde = _json_van(r, {})
+    return (waarde.get("data") or {}) if isinstance(waarde, dict) else {}
 
 
 def baan_overzicht(sess, au: dict, fg_id, playercount: int) -> tuple:
@@ -267,7 +304,8 @@ def au_zoek_spelers(sess, au: dict, context_key: str, term: str) -> list:
              headers=au["headers"], params={"searchstring": term}, timeout=25)
     if r.status_code != 200:
         return []
-    data = (r.json() or {}).get("data")
+    waarde = _json_van(r, {})
+    data = (waarde.get("data") if isinstance(waarde, dict) else waarde)
     rijen = data if isinstance(data, list) else ([data] if data else [])
     return [{"key": str(x["key"]), "naam": x.get("name") or ""} for x in rijen if x.get("key")]
 
@@ -341,7 +379,8 @@ def app_banen(sess, token: str, cid: str, mid: str, module_id: str) -> list:
                      f"/allunited_tennis_courts/overview",
                      headers=_h(token, mid), params={"date": datum}, timeout=30)
         if r.status_code == 200:
-            locaties = (r.json() or {}).get("locations") or []
+            waarde = _json_van(r, {})
+            locaties = (waarde.get("locations") if isinstance(waarde, dict) else None) or []
             if locaties:
                 return locaties
     return []
