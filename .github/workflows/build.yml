@@ -1,0 +1,56 @@
+name: build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  bouw:
+    name: ${{ matrix.naam }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Afhankelijkheden
+        run: python -m pip install --upgrade pip pyinstaller requests
+      - name: Bouwen
+        run: pyinstaller --noconfirm --clean build.spec
+      - name: Naam geven
+        shell: bash
+        run: |
+          mkdir -p uit
+          if [ -f dist/padel-configurator.exe ]; then
+            cp dist/padel-configurator.exe "uit/padel-configurator-${{ matrix.naam }}.exe"
+          else
+            cp dist/padel-configurator "uit/padel-configurator-${{ matrix.naam }}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.naam }}
+          path: uit/*
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: uit/*
+          body: |
+            Zelfstandige configurator voor de baantjes-reservering.
+
+            | bestand | platform |
+            |---|---|
+            | `padel-configurator-windows.exe` | Windows 10/11 |
+            | `padel-configurator-macos-arm64` | Mac met Apple-chip (M1 en nieuwer) |
+            | `padel-configurator-macos-intel` | Mac met Intel-processor |
+            | `padel-configurator-linux` | Linux |
+
+            Uitvoeren en de URL openen die in het venster verschijnt. Zie README.md.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, naam: windows }
+          - { os: macos-14, naam: macos-arm64 }
+          - { os: macos-13, naam: macos-intel }
+          - { os: ubuntu-latest, naam: linux }
