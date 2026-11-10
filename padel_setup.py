@@ -505,7 +505,7 @@ def render_pakket(config: dict, notify_entity: str, slot_eind: str,
     pakket = (
         PAKKET_KOP
         + "\nshell_command:\n"
-        + "  padel_bestanden_neerzetten: |\n"
+        + "  padel_bestanden_neerzetten: |-\n"
         + "    set -e\n"
         + "    mkdir -p /config/scripts\n"
         + "    cat > /config/scripts/.padel_payload.b64 <<'PADEL_EOF'\n"
@@ -552,8 +552,6 @@ def render_script_ui() -> str:
 description: >-
   Zet het boekingsscript in /config/scripts en bewaar je inloggegevens.
   Eenmalig uitvoeren; daarna doet de automation het werk.
-trace:
-  script.padel_bestanden_klaarzetten: false
 fields:
   gebruikersnaam:
     name: Gebruikersnaam (e-mailadres van je clubaccount)
@@ -639,18 +637,10 @@ Daarna draait de automation vanzelf: elke **{trig['weekday']}** om
 
 ### Wachtwoord en traces
 
-Het script heeft `trace` uitgezet, zodat je wachtwoord niet in de trace-historie
-belandt. Krijg je bij het opslaan een foutmelding over `trace`, verwijder dan deze
-twee regels uit het script:
-
-```yaml
-trace:
-  script.padel_bestanden_klaarzetten: false
-```
-
-Het script werkt ook zonder; wis in dat geval na het uitvoeren de traces
-(Instellingen -> Automatiseringen & scènes -> Scripts -> het script ->
-drie puntjes -> Traces wissen).
+Home Assistant bewaart per uitvoering een trace, inclusief de variabelen die je
+invult. Wis die na het instellen: Instellingen -> Automatiseringen & scènes ->
+Scripts -> *Padel: bestanden klaarzetten* -> drie puntjes -> **Traces wissen**.
+Het wachtwoord staat verder alleen in `book_padel_secrets.json` (mode 600).
 
 ### Later iets wijzigen
 
