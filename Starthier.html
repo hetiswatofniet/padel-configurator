@@ -57,6 +57,18 @@
   .bezig { color:var(--zwak); font-size:.9rem; margin:12px 0 0; }
   code { background:#f0ece2; padding:1px 5px; border-radius:4px; font-size:.88em; }
   @media (max-width:520px) { .rij { grid-template-columns:1fr; } }
+  details.handleiding { margin-top: 18px; border-top: 1px solid rgba(0,0,0,.08); padding-top: 10px; }
+  details.handleiding summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+  .md h1 { font-size: 18px; margin: 14px 0 6px; }
+  .md h2 { font-size: 15px; margin: 14px 0 6px; }
+  .md p { margin: 6px 0; line-height: 1.5; }
+  .md ol, .md ul { margin: 6px 0 6px 20px; padding: 0; }
+  .md li { margin: 3px 0; line-height: 1.45; }
+  .md code { background: rgba(0,0,0,.06); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+  .md pre { background: rgba(0,0,0,.06); padding: 8px 10px; border-radius: 4px; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; }
+  .md table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  .md th, .md td { border: 1px solid rgba(0,0,0,.12); padding: 4px 8px; text-align: left; }
   details.rest { margin-top: 14px; }
   details.rest summary { cursor: pointer; padding: 6px 0; font-size: 13px; opacity: .8; }
   details.rest summary:hover { opacity: 1; }
@@ -66,7 +78,7 @@
 <header>
   <h1>Baantjes-reservering instellen</h1>
   <p class="sub">Maakt de bestanden voor Home Assistant. Je logt hieronder in bij de clubapp.</p>
-  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.3</p>
+  <p class="sub" id="versie" style="margin-top:6px;font-size:.8rem">versie 1.1.4</p>
 </header>
 
 <main>
@@ -157,6 +169,10 @@
     <h2>Klaar</h2>
     <p class="hint" id="samenvatting"></p>
     <div id="bestanden"></div>
+    <details class="handleiding" id="handleiding" open>
+      <summary>Handleiding</summary>
+      <div id="handleiding-inhoud" class="md"></div>
+    </details>
     <p class="hint" id="doel-info"></p>
     <p class="hint">Volg de snelste route: twee bestanden, klaar. De rest staat uitgeklapt
       onderaan bij de handmatige route.</p>
@@ -407,6 +423,7 @@ $("knop-genereer").onclick = async () => {
       "automation op " + (DAG_KORT[data.trigger.weekday] || data.trigger.weekday) + " " + data.trigger.time.slice(0, 5) + ".";
 
     toonBestanden(data);
+    toonHandleiding(data.bestanden && data.bestanden["INSTALL.md"]);
 
     if (data.geschreven && data.geschreven.length) {
       $("doel-info").innerHTML = "Deze bestanden zijn al weggeschreven:<br>" +
@@ -426,6 +443,91 @@ $("knop-genereer").onclick = async () => {
     $("knop-genereer").disabled = false; bezig("bezig-3", false);
   }
 };
+
+function mdNaarHtml(md) {
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (t) => esc(t)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  // vervolgregels (ingesprongen) aan de vorige regel plakken, zodat
+  // een lijstitem niet stopt zodra de tekst op de volgende regel doorgaat
+  const voor = [];
+  let inFence = false;
+  md.replace(/\r/g, "").split("\n").forEach((regel) => {
+    if (regel.trim().startsWith("```")) { inFence = !inFence; voor.push(regel); return; }
+    if (inFence) { voor.push(regel); return; }
+    if (/^\s{2,}\S/.test(regel) && voor.length && voor[voor.length - 1].trim()) {
+      voor[voor.length - 1] = voor[voor.length - 1].replace(/\s+$/, "") + " " + regel.trim();
+    } else {
+      voor.push(regel);
+    }
+  });
+
+  const regels = voor;
+  const uit = [];
+  let inCode = false, code = [], lijst = null, tabel = null;
+
+  function sluitLijst() { if (lijst) { uit.push("</" + lijst + ">"); lijst = null; } }
+  function sluitTabel() {
+    if (!tabel) return;
+    uit.push("</tbody></table>"); tabel = null;
+  }
+  function sluitAlles() { sluitLijst(); sluitTabel(); }
+
+  regels.forEach((regel, i) => {
+    const t = regel.trim();
+
+    if (t.startsWith("```")) {
+      if (inCode) { uit.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>"); inCode = false; code = []; }
+      else { sluitAlles(); inCode = true; }
+      return;
+    }
+    if (inCode) { code.push(regel.replace(/^ {1,4}/, "")); return; }
+    if (!t) { sluitAlles(); return; }
+
+    if (t.startsWith("|")) {
+      sluitLijst();
+      const cellen = t.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      if (cellen.every((c) => /^-{2,}$/.test(c.replace(/:/g, "")))) return; // scheidingsregel
+      if (!tabel) {
+        uit.push("<table><thead><tr>" + cellen.map((c) => "<th>" + inline(c) + "</th>").join("") + "</tr></thead><tbody>");
+        tabel = true;
+      } else {
+        uit.push("<tr>" + cellen.map((c) => "<td>" + inline(c) + "</td>").join("") + "</tr>");
+      }
+      return;
+    }
+    sluitTabel();
+
+    const kop = t.match(/^(#{1,3})\s+(.*)$/);
+    if (kop) { sluitLijst(); uit.push("<h" + kop[1].length + ">" + inline(kop[2]) + "</h" + kop[1].length + ">"); return; }
+
+    const genummerd = t.match(/^(\d+)\.\s+(.*)$/);
+    if (genummerd) {
+      if (lijst !== "ol") { sluitLijst(); uit.push("<ol>"); lijst = "ol"; }
+      uit.push("<li>" + inline(genummerd[2]) + "</li>");
+      return;
+    }
+    if (t.startsWith("- ")) {
+      if (lijst !== "ul") { sluitLijst(); uit.push("<ul>"); lijst = "ul"; }
+      uit.push("<li>" + inline(t.slice(2)) + "</li>");
+      return;
+    }
+    sluitLijst();
+    uit.push("<p>" + inline(t) + "</p>");
+  });
+
+  if (inCode) uit.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+  sluitAlles();
+  return uit.join("\n");
+}
+
+function toonHandleiding(md) {
+  const doel = document.getElementById("handleiding-inhoud");
+  if (!doel) return;
+  doel.innerHTML = md ? mdNaarHtml(md) : "<p>Handleiding niet meegeleverd.</p>";
+}
 
 function toonBestanden(data) {
 const bak = $("bestanden"); bak.innerHTML = "";
