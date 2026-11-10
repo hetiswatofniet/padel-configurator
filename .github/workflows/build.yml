@@ -44,9 +44,8 @@ jobs:
             | bestand | platform |
             |---|---|
             | `padel-configurator-windows.exe` | Windows 10/11 |
-            | `padel-configurator-macos-arm64` | Mac met Apple-chip (M1 en nieuwer) |
             | `padel-configurator-macos-intel` | Mac met Intel-processor |
-            | `padel-configurator-linux` | Linux |
+            | `padel-configurator-linux` | Linux (x86_64) |
 
             Uitvoeren en de URL openen die in het venster verschijnt. Zie README.md.
     strategy:
@@ -54,6 +53,5 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, naam: windows }
-          # Later aanzetten zodra de Mac-build getest is:
-          # - { os: macos-13, naam: macos-intel }
-          # - { os: ubuntu-latest, naam: linux }
+          - { os: macos-13, naam: macos-intel }
+          - { os: ubuntu-latest, naam: linux }
