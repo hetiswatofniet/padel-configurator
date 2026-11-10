@@ -546,6 +546,28 @@ iets vrij is.
     return tekst
 
 
+SECRETS_VELDEN = ("email", "password")
+
+
+def _alleen_invoer(creds: dict) -> dict:
+    """Geef alleen de door de gebruiker ingevoerde velden terug.
+
+    Het secrets-bestand mag nooit meer bevatten dan wat er is ingevoerd: geen
+    id's, geen clubgegevens, geen tokens. Onbekende velden zijn een programmeer-
+    fout en laten we hard stuklopen in plaats van ze weg te schrijven.
+    """
+    onbekend = set(creds) - set(SECRETS_VELDEN)
+    if onbekend:
+        raise Fout(f"secrets-bestand zou onverwachte velden krijgen: {sorted(onbekend)}")
+    schoon = {}
+    for veld in SECRETS_VELDEN:
+        waarde = creds.get(veld)
+        if not isinstance(waarde, str):
+            raise Fout(f"secrets-veld '{veld}' is geen tekst")
+        schoon[veld] = waarde
+    return schoon
+
+
 def bouw_bestanden(config: dict, notify_entity: str, slot_eind: str,
                    creds: dict | None) -> tuple:
     """(bestanden, trigger): alle HA-bestanden als {naam: inhoud}."""
@@ -560,7 +582,7 @@ def bouw_bestanden(config: dict, notify_entity: str, slot_eind: str,
     }
     if creds:
         bestanden["book_padel_secrets.json"] = (
-            json.dumps(creds, indent=2, ensure_ascii=False) + "\n")
+            json.dumps(_alleen_invoer(creds), indent=2, ensure_ascii=False) + "\n")
     return bestanden, trig
 
 

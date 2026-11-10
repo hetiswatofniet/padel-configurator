@@ -28,7 +28,7 @@ import padel_setup as setup
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 PAGINA = ROOT / "Starthier.html"
-VERSIE = "1.0.3"
+VERSIE = "1.0.4"
 POORT = 8124
 TOEGANG = secrets.token_urlsafe(8)
 DOEL: Path | None = None
@@ -161,9 +161,8 @@ def api_genereer(body: dict) -> dict:
         "players": [s["key"] for s in spelers_lijst],
         "players_naam": [s["naam"] for s in spelers_lijst],
     }
+    # Alleen wat de gebruiker zelf invoerde; nooit id's, clubgegevens of tokens.
     creds = {"email": STAAT["email"], "password": body.get("wachtwoord") or ""}
-    if not creds["password"]:
-        creds = {"email": "", "password": ""}
 
     bestanden, trig = setup.bouw_bestanden(config, body.get("notify") or "", slot_eind, creds)
 
@@ -173,6 +172,8 @@ def api_genereer(body: dict) -> dict:
         for naam, inhoud in bestanden.items():
             pad = DOEL / naam
             pad.write_text(inhoud, encoding="utf-8")
+            if naam == "book_padel_secrets.json":
+                pad.chmod(0o600)          # alleen de eigenaar mag dit lezen
             geschreven.append(str(pad))
 
     return {"bestanden": bestanden, "trigger": trig, "slot_eind": slot_eind,
