@@ -30,7 +30,7 @@ import padel_setup as setup
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 PAGINA = ROOT / "Starthier.html"
-VERSIE = "1.2.3"
+VERSIE = "1.2.4"
 POORT = 8124
 TOEGANG = secrets.token_urlsafe(8)
 DOEL: Path | None = None

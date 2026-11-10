@@ -27,6 +27,8 @@ def main() -> int:
     ap.add_argument("binary")
     ap.add_argument("--verwacht", default="", help="versienummer dat in de pagina moet staan")
     ap.add_argument("--poort", default="8129")
+    ap.add_argument("--logbestand", default="",
+                    help="bestand waarin het programma de URL schrijft (voor een windowed app)")
     ap.add_argument("--log", default="", help="logbestand waarin het programma de URL schrijft")
     args = ap.parse_args()
 
@@ -36,8 +38,8 @@ def main() -> int:
 
     proc = subprocess.Popen(
         [args.binary, "--geen-browser", "--poort", args.poort],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE if not args.logbestand else subprocess.DEVNULL,
+        stderr=subprocess.STDOUT if not args.logbestand else subprocess.DEVNULL,
         text=True,
     )
 
@@ -45,21 +47,16 @@ def main() -> int:
     deadline = time.time() + 90
     try:
         while time.time() < deadline:
-            if args.log:
-                # venster-modus: er is geen console, de URL staat in het logbestand
-                if os.path.exists(args.log):
-                    try:
-                        inhoud = open(args.log, encoding="utf-8", errors="replace").read()
-                    except OSError:
-                        inhoud = ""
-                    m = URL_RE.search(inhoud)
+            if args.logbestand:
+                if os.path.exists(args.logbestand):
+                    tekst = open(args.logbestand, encoding="utf-8", errors="replace").read()
+                    m = URL_RE.search(tekst)
                     if m:
                         token = m.group(1)
-                        regels = inhoud.splitlines()
                         break
                 if proc.poll() is not None:
                     break
-                time.sleep(0.5)
+                time.sleep(0.3)
                 continue
 
             regel = proc.stdout.readline()

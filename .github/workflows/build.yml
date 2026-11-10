@@ -39,6 +39,19 @@ jobs:
           else
             cp dist/padel-configurator "uit/padel-configurator-${{ matrix.naam }}"
           fi
+      - name: macOS .app-bundel (dubbelklikbaar)
+        if: matrix.naam == 'macos-arm64'
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name padel-configurator \
+            --add-data "Starthier.html:." --add-data "template_book_padel.py:." \
+            --distpath dist-app --workpath build-app configureer.py
+          VERSIE=$(python -c "import re;print(re.search(r'VERSIE = \"([0-9.]+)\"', open('configureer.py').read()).group(1))")
+          PADEL_LOG="$PWD/app.log" python scripts/rooktest.py \
+            "dist-app/padel-configurator.app/Contents/MacOS/padel-configurator" \
+            --verwacht "$VERSIE" --logbestand "$PWD/app.log"
+          ditto -c -k --keepParent "dist-app/padel-configurator.app" "uit/padel-configurator-macos-arm64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.naam }}
@@ -95,6 +108,19 @@ jobs:
           mkdir -p uit
           ditto -c -k --sequesterRsrc --keepParent "dist/padel-configurator.app" \
             "uit/padel-configurator-macos-arm64.zip"
+      - name: macOS .app-bundel (dubbelklikbaar)
+        if: matrix.naam == 'macos-arm64'
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name padel-configurator \
+            --add-data "Starthier.html:." --add-data "template_book_padel.py:." \
+            --distpath dist-app --workpath build-app configureer.py
+          VERSIE=$(python -c "import re;print(re.search(r'VERSIE = \"([0-9.]+)\"', open('configureer.py').read()).group(1))")
+          PADEL_LOG="$PWD/app.log" python scripts/rooktest.py \
+            "dist-app/padel-configurator.app/Contents/MacOS/padel-configurator" \
+            --verwacht "$VERSIE" --logbestand "$PWD/app.log"
+          ditto -c -k --keepParent "dist-app/padel-configurator.app" "uit/padel-configurator-macos-arm64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
