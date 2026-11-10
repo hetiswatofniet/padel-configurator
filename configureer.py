@@ -28,6 +28,7 @@ import padel_setup as setup
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 PAGINA = ROOT / "Starthier.html"
+VERSIE = "1.0.3"
 POORT = 8124
 TOEGANG = secrets.token_urlsafe(8)
 DOEL: Path | None = None
@@ -274,7 +275,7 @@ def main() -> int:
         print(f"Geen vrije poort gevonden vanaf {POORT_LOCAL}. Stop een eerder gestart venster.")
         return 1
     url = f"http://{lokaal_ip()}:{POORT_LOCAL}/{TOEGANG}/"
-    regels = ["=" * 60, "  Baantjes-reservering: configurator", "=" * 60,
+    regels = ["=" * 60, f"  Baantjes-reservering: configurator v{VERSIE}", "=" * 60,
               f"  Open op je laptop: {url}"]
     if DOEL:
         regels.append(f"  Bestanden worden geschreven naar: {DOEL}")

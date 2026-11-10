@@ -608,14 +608,7 @@ def main() -> int:
     module_id = args.module_id or opgeslagen_module_id()
     module_id = vind_boekingsmodule(sess, token, v["cid"], v["mid"], module_id)
     if not module_id:
-        print("\nDe koppeling met het boekingssysteem is niet automatisch gevonden.")
-        print("Open in de clubapp de boekingsmodule en plak de module-id uit de link")
-        print("(het stuk tussen '/modules/' en '/allunited_pwa').")
-        module_id = vind_boekingsmodule(sess, token, v["cid"], v["mid"],
-                                        vraag("Module-id (leeg = stoppen)"))
-        if not module_id:
-            raise Fout("Zonder module-id kan ik geen reservering maken.")
-        bewaar_module_id(module_id)
+        raise Fout("Deze vereniging heeft geen AllUnited-boekingsmodule in het app-menu.")
 
     au = allunited_sessie(sess, token, v["cid"], v["mid"], module_id)
     print(f"Boekingssysteem: {au['club'] or v['naam']} (ingelogd als {au['contact']})")

@@ -47,9 +47,8 @@ de wizard: inloggen, sport en baan kiezen, dag en tijd, met wie je speelt. Klik
 ## Belangrijk
 
 - `book_padel_secrets.json` bevat je club-wachtwoord. Deel dat bestand niet.
-- Eén keer heb je de **deellink van de boekingsmodule** nodig: open de clubapp, ga naar
-  de boekingsmodule en kies *Delen > Kopieer link*. Plak die link in de wizard; die haalt
-  het id eruit. Daarna onthoudt hij het.
+- De wizard haalt de vereniging, de boekingsmodule, de banen en de leden zelf op uit
+  het menu van de clubapp. Je hoeft dus geen id's of links op te zoeken.
 - Notificaties zijn niet automatisch ingesteld: in `book_padel_automation.yaml` staat een
   uitgecommentarieerd blok waarin je je eigen `notify`-entiteit invult.
 - Werkt je club met hetzelfde boekingsplatform, dan vindt de wizard vereniging, sporten,
