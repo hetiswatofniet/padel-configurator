@@ -13,9 +13,11 @@ Bij het starten verschijnt een URL met een toegangscode; open die op je laptop.
 
 import argparse
 import json
+import os
 import secrets
 import socket
 import sys
+import tempfile
 import traceback
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,7 +30,7 @@ import padel_setup as setup
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 PAGINA = ROOT / "Starthier.html"
-VERSIE = "1.2.2"
+VERSIE = "1.2.3"
 POORT = 8124
 TOEGANG = secrets.token_urlsafe(8)
 DOEL: Path | None = None
@@ -248,8 +250,24 @@ def lokaal_ip() -> str:
         return "127.0.0.1"
 
 
+def logbestand_voorbereiden() -> Path:
+    """Zonder console (macOS .app) schrijven we alles naar een logbestand."""
+    pad = Path(os.environ.get("PADEL_LOG")
+               or Path(tempfile.gettempdir()) / "padel-configurator.log")
+    if sys.stdout is None or sys.stderr is None:
+        try:
+            pad.parent.mkdir(parents=True, exist_ok=True)
+            stroom = open(pad, "a", encoding="utf-8", buffering=1)   # noqa: SIM115
+            sys.stdout = sys.stdout or stroom
+            sys.stderr = sys.stderr or stroom
+        except OSError:
+            pass
+    return pad
+
+
 def main() -> int:
     global DOEL
+    logpad = logbestand_voorbereiden()
     parser = argparse.ArgumentParser(description="Configurator voor de baantjes-reservering")
     parser.add_argument("--doel", help="map waar de bestanden direct in geschreven worden "
                                        "(bijv. /config/scripts)")
@@ -281,7 +299,13 @@ def main() -> int:
     if DOEL:
         regels.append(f"  Bestanden worden geschreven naar: {DOEL}")
     regels += ["  Stoppen: Ctrl+C   (start hem alleen tijdens het instellen)", "=" * 60]
-    print("\n".join(regels), flush=True)
+    tekst = "\n".join(regels)
+    print(tekst, flush=True)
+    try:                                  # ook altijd naar het logbestand, zodat
+        with open(logpad, "a", encoding="utf-8") as log:   # de link terug te vinden is
+            log.write(tekst + "\n")
+    except OSError:
+        pass
     if "--geen-browser" not in sys.argv:
         try:
             webbrowser.open(url)

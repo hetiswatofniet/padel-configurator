@@ -66,3 +66,40 @@ jobs:
           - { os: macos-15-intel, naam: macos-intel }
           - { os: macos-15, naam: macos-arm64 }
           - { os: ubuntu-latest, naam: linux }
+
+  app:
+    name: macos-app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Afhankelijkheden
+        run: python -m pip install --upgrade pip pyinstaller requests
+      - name: Bouwen als app-bundel
+        run: >
+          pyinstaller --windowed --noconfirm --clean --name padel-configurator
+          --add-data "Starthier.html:." --add-data "template_book_padel.py:."
+          configureer.py
+      - name: Rooktest (app starten, URL uit logbestand)
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          VERSIE=$(python -c "import re;print(re.search(r'VERSIE = \"([0-9.]+)\"', open('configureer.py').read()).group(1))")
+          export PADEL_LOG="$RUNNER_TEMP/padel-app.log"
+          python scripts/rooktest.py "dist/padel-configurator.app/Contents/MacOS/padel-configurator" \
+            --verwacht "$VERSIE" --log "$PADEL_LOG"
+      - name: Zippen (app-bundel is een map)
+        run: |
+          mkdir -p uit
+          ditto -c -k --sequesterRsrc --keepParent "dist/padel-configurator.app" \
+            "uit/padel-configurator-macos-arm64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: uit/*
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: uit/*

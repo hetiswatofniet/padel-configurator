@@ -11,7 +11,8 @@ Download bij **Releases** het bestand voor jouw computer:
 |---|---|
 | `padel-configurator-windows.exe` | Windows 10/11 |
 | `padel-configurator-macos-arm64` | Mac met Apple-chip (M1 of nieuwer) |
-| `padel-configurator-macos-intel` | Mac met Intel-processor |
+| `padel-configurator-macos-arm64.zip` | Mac met Apple-chip — dubbelklikbare app |
+| `padel-configurator-macos-intel` | Mac met Intel-processor (los bestand, eerst chmod +x) |
 | `padel-configurator-linux` | Linux |
 
 Start het programma. Er verschijnt een venster met een adres als

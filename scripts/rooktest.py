@@ -27,6 +27,7 @@ def main() -> int:
     ap.add_argument("binary")
     ap.add_argument("--verwacht", default="", help="versienummer dat in de pagina moet staan")
     ap.add_argument("--poort", default="8129")
+    ap.add_argument("--log", default="", help="logbestand waarin het programma de URL schrijft")
     args = ap.parse_args()
 
     if not os.path.exists(args.binary):
@@ -44,6 +45,23 @@ def main() -> int:
     deadline = time.time() + 90
     try:
         while time.time() < deadline:
+            if args.log:
+                # venster-modus: er is geen console, de URL staat in het logbestand
+                if os.path.exists(args.log):
+                    try:
+                        inhoud = open(args.log, encoding="utf-8", errors="replace").read()
+                    except OSError:
+                        inhoud = ""
+                    m = URL_RE.search(inhoud)
+                    if m:
+                        token = m.group(1)
+                        regels = inhoud.splitlines()
+                        break
+                if proc.poll() is not None:
+                    break
+                time.sleep(0.5)
+                continue
+
             regel = proc.stdout.readline()
             if not regel:
                 if proc.poll() is not None:
